@@ -282,12 +282,12 @@ run_with_spinner() {
     local cmd_out="/tmp/.spinner_out_$$" cmd_err="/tmp/.spinner_err_$$"
     local pid spin_i=0
 
-    printf "  ${C}%s${NC} " "$msg" >&2
+    printf "  ${C}%s${RS} " "$msg" >&2
     "$@" > "$cmd_out" 2>"$cmd_err" &
     pid=$!
 
     while kill -0 "$pid" 2>/dev/null; do
-        printf "\r  ${C}%s${NC} ${Y}%s${NC} ${D}%s${NC}" \
+        printf "\r  ${C}%s${RS} ${Y}%s${RS} ${D}%s${RS}" \
             "$msg" "${SPIN_CHARS:$spin_i:1}" "$(timer_elapsed)" >&2
         spin_i=$(( (spin_i + 1) % ${#SPIN_CHARS} ))
         sleep 0.1
@@ -297,10 +297,10 @@ run_with_spinner() {
     local ret=$?
     cat "$cmd_out" 2>/dev/null
     if (( ret == 0 )); then
-        printf "\r  ${G}✓${NC} %s ${D}(%s)${NC}\n" "$msg" "$(timer_elapsed)" >&2
+        printf "\r  ${G}✓${RS} %s ${D}(%s)${RS}\n" "$msg" "$(timer_elapsed)" >&2
     else
-        printf "\r  ${R}✗${NC} %s ${D}(%s)${NC}\n" "$msg" "$(timer_elapsed)" >&2
-        [[ -s "$cmd_err" ]] && echo -e "  ${D}$(tail -3 "$cmd_err")${NC}" >&2
+        printf "\r  ${R}✗${RS} %s ${D}(%s)${RS}\n" "$msg" "$(timer_elapsed)" >&2
+        [[ -s "$cmd_err" ]] && echo -e "  ${D}$(tail -3 "$cmd_err")${RS}" >&2
     fi
     rm -f "$cmd_out" "$cmd_err"
     return $ret
