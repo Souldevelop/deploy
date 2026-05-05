@@ -59,6 +59,9 @@ USE_CHINA=false
 # 可通过环境变量 BOOTSTRAP_SELF_URL 覆盖。
 readonly SELF_SOURCE="${BOOTSTRAP_SELF_URL:-https://raw.githubusercontent.com/Souldevelop/deploy/master/deploy_claude.sh}"
 
+# 脚本版本号（更新时请修改此值）
+readonly SCRIPT_VERSION="2.0.0"
+
 # ---------------------------------------------------------------------------
 # APT mirror presets
 # ---------------------------------------------------------------------------
@@ -253,6 +256,59 @@ download_file() {
     return 1
 }
 
+# ---------------------------------------------------------------------------
+# 进度指示器（从 ref.sh 借鉴）
+# ---------------------------------------------------------------------------
+
+SPIN_CHARS="⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
+SCRIPT_START=0
+STEP_START=0
+
+timer_start()    { STEP_START=$(date +%s); }
+timer_total_on() { SCRIPT_START=$(date +%s); }
+
+timer_elapsed() {
+    local now=$(( $(date +%s) - STEP_START )) min sec
+    min=$(( now / 60 ))
+    sec=$(( now % 60 ))
+    if (( min > 0 )); then printf "%d分%d秒" "$min" "$sec"
+    else printf "%d秒" "$sec"
+    fi
+}
+
+# 后台旋转动画（输出到 stderr），不影响 stdout 捕获
+run_with_spinner() {
+    local msg="$1"; shift
+    local cmd_out="/tmp/.spinner_out_$$" cmd_err="/tmp/.spinner_err_$$"
+    local pid spin_i=0
+
+    printf "  ${C}%s${RS} " "$msg" >&2
+    "$@" > "$cmd_out" 2>"$cmd_err" &
+    pid=$!
+
+    while kill -0 "$pid" 2>/dev/null; do
+        printf "\r  ${C}%s${RS} ${Y}%s${RS} ${D}%s${RS}" \
+            "$msg" "${SPIN_CHARS:$spin_i:1}" "$(timer_elapsed)" >&2
+        spin_i=$(( (spin_i + 1) % ${#SPIN_CHARS} ))
+        sleep 0.1
+    done
+
+    wait "$pid"
+    local ret=$?
+    cat "$cmd_out" 2>/dev/null
+    if (( ret == 0 )); then
+        printf "\r  ${G}✓${RS} %s ${D}(%s)${RS}\n" "$msg" "$(timer_elapsed)" >&2
+    else
+        printf "\r  ${R}✗${RS} %s ${D}(%s)${RS}\n" "$msg" "$(timer_elapsed)" >&2
+        [[ -s "$cmd_err" ]] && echo -e "  ${D}$(tail -3 "$cmd_err")${RS}" >&2
+    fi
+    rm -f "$cmd_out" "$cmd_err"
+    return $ret
+}
+
+run_apt_spinner() { local m="$1"; shift; timer_start; run_with_spinner "$m" apt-get "$@" -y; }
+run_npm_spinner()  { local m="$1"; shift; timer_start; run_with_spinner "$m" npm "$@"; }
+
 # 交互式读输入：始终从终端读取（兼容管道模式 stdin 被占用的情况）
 read_input() {
     local prompt="$1" var_name="${2:-REPLY}" val
@@ -394,6 +450,24 @@ check_version() {
             fi
             ;;
     esac
+}
+
+# ---------------------------------------------------------------------------
+# APT 源格式检测（从 ref.sh 借鉴，比版本号判断更精确）
+# ---------------------------------------------------------------------------
+
+detect_apt_format() {
+    local format_file=""
+    if [ "$DISTRO_ID" = "ubuntu" ] && [ -f /etc/apt/sources.list.d/ubuntu.sources ]; then
+        format_file="/etc/apt/sources.list.d/ubuntu.sources"
+    elif [ "$DISTRO_ID" = "debian" ] && [ -f /etc/apt/sources.list.d/debian.sources ]; then
+        format_file="/etc/apt/sources.list.d/debian.sources"
+    fi
+    if [ -n "$format_file" ]; then
+        echo "deb822"
+    else
+        echo "legacy"
+    fi
 }
 
 # ---------------------------------------------------------------------------
@@ -604,14 +678,7 @@ apply_apt_mirror() {
     major="$(echo "$VERSION_ID" | cut -d. -f1)"
 
     local use_deb822=false
-    case "$DISTRO_ID" in
-        debian)
-            [ "$major" -ge 12 ] 2>/dev/null && use_deb822=true
-            ;;
-        ubuntu)
-            [ "$major" -ge 24 ] 2>/dev/null && use_deb822=true
-            ;;
-    esac
+    [ "$(detect_apt_format)" = "deb822" ] && use_deb822=true
 
     if [ "$use_deb822" = true ]; then
         apply_apt_sources_deb822 "$mirror" "$components" "$sec_suite"
@@ -742,7 +809,7 @@ install_system_deps() {
     fi
 
     log_info "Installing: ${install_list[*]}"
-    DEBIAN_FRONTEND=noninteractive apt-get install -y -qq "${install_list[@]}" 2>/dev/null || \
+    run_apt_spinner "安装系统依赖" install "${install_list[@]}" || \
     DEBIAN_FRONTEND=noninteractive apt-get install -y "${install_list[@]}"
 
     log_ok "System dependencies installed"
@@ -1057,12 +1124,22 @@ install_claude_code() {
     local npm_cache="/tmp/.npm-cache"
     mkdir -p "$npm_cache"
 
-    run_retry npm install --cache "$npm_cache" -g @anthropic-ai/claude-code || {
-        log_error "npm install failed"
+    # npm install with spinner + retry
+    local npm_attempt=0 npm_max=3
+    while [ "$npm_attempt" -lt "$npm_max" ]; do
+        npm_attempt=$((npm_attempt + 1))
+        if run_npm_spinner "安装 @anthropic-ai/claude-code (第${npm_attempt}次)" \
+            install --cache "$npm_cache" -g @anthropic-ai/claude-code; then
+            break
+        fi
+        [ "$npm_attempt" -lt "$npm_max" ] && log_warn "重试 ${npm_attempt}/${npm_max} ..."
+    done
+    if ! command -v claude &>/dev/null && [ "$npm_attempt" -ge "$npm_max" ]; then
+        log_error "npm install failed after ${npm_max} attempts"
         log_error "Check network connectivity and npm registry: $(npm config get registry)"
         log_error "Retry manually: npm install -g @anthropic-ai/claude-code"
         return 1
-    }
+    fi
 
     if command -v claude &>/dev/null; then
         local ver
@@ -1078,6 +1155,22 @@ install_claude_code() {
             log_ok "Symlink created"
         fi
     fi
+}
+
+# settings.json 回退写入函数（python3 不可用时使用）
+_write_json_fallback() {
+    local key="$1" url="$2" model="$3" dir="$4"
+    local file="${dir}/settings.json" sep=""
+    printf '{\n  "env": {\n' > "$file"
+    [ -n "$key" ] && printf '    "ANTHROPIC_AUTH_TOKEN": "%s"' "$key" >> "$file" && sep=","
+    [ -n "$url" ] && printf '%s\n    "ANTHROPIC_BASE_URL": "%s"' "$sep" "$url" >> "$file" && sep=","
+    local m="${model:-claude-sonnet-4-6-20250224}"
+    printf '%s\n    "ANTHROPIC_MODEL": "%s"' "$sep" "$m" >> "$file"
+    for _f in HAIKU SONNET OPUS REASONING; do
+        printf '\n    "ANTHROPIC_DEFAULT_%s_MODEL": "%s"' "$_f" "$m" >> "$file"
+    done
+    printf '\n  }\n}\n' >> "$file"
+    chmod 644 "$file"
 }
 
 # ---------------------------------------------------------------------------
@@ -1166,19 +1259,32 @@ EOF
     chmod 600 "${claude_dir}/.env"
 
     # ---------- Write settings.json (primary config) ----------
-    cat > "${claude_dir}/settings.json" << EOF
-{
-    "env": {
-        "ANTHROPIC_AUTH_TOKEN": "${api_key}",
-        "ANTHROPIC_BASE_URL": "${base_url}",
-        "ANTHROPIC_MODEL": "${model_name:-claude-sonnet-4-6-20250224}",
-        "ANTHROPIC_DEFAULT_HAIKU_MODEL": "${model_name:-claude-sonnet-4-6-20250224}",
-        "ANTHROPIC_DEFAULT_SONNET_MODEL": "${model_name:-claude-sonnet-4-6-20250224}",
-        "ANTHROPIC_DEFAULT_OPUS_MODEL": "${model_name:-claude-sonnet-4-6-20250224}",
-        "ANTHROPIC_REASONING_MODEL": "${model_name:-claude-sonnet-4-6-20250224}"
-    }
-}
-EOF
+    # 优先用 python3 构建 JSON（安全处理特殊字符），回退到 shell
+    if command -v python3 &>/dev/null; then
+        python3 -c "
+import json, os
+cfg_file = '${claude_dir}/settings.json'
+existing = {}
+if os.path.exists(cfg_file):
+    try:
+        with open(cfg_file) as f:
+            existing = json.load(f)
+    except: pass
+env_cfg = existing.get('env', {})
+env_cfg['ANTHROPIC_AUTH_TOKEN'] = '${api_key}'
+env_cfg['ANTHROPIC_BASE_URL'] = '${base_url}'
+env_cfg['ANTHROPIC_MODEL'] = '${model_name:-claude-sonnet-4-6-20250224}'
+env_cfg['ANTHROPIC_DEFAULT_HAIKU_MODEL'] = '${model_name:-claude-sonnet-4-6-20250224}'
+env_cfg['ANTHROPIC_DEFAULT_SONNET_MODEL'] = '${model_name:-claude-sonnet-4-6-20250224}'
+env_cfg['ANTHROPIC_DEFAULT_OPUS_MODEL'] = '${model_name:-claude-sonnet-4-6-20250224}'
+env_cfg['ANTHROPIC_REASONING_MODEL'] = '${model_name:-claude-sonnet-4-6-20250224}'
+existing['env'] = env_cfg
+with open(cfg_file, 'w') as f:
+    json.dump(existing, f, indent=2, ensure_ascii=False)
+" 2>/dev/null || _write_json_fallback "$api_key" "$base_url" "$model_name" "$claude_dir"
+    else
+        _write_json_fallback "$api_key" "$base_url" "$model_name" "$claude_dir"
+    fi
     log_ok "Config written → ${claude_dir}/settings.json"
     log_dim "  .env (backup) → ${claude_dir}/.env"
 
@@ -1364,12 +1470,18 @@ EOF
 # ---------------------------------------------------------------------------
 
 print_summary() {
+    local total_elapsed total_min total_sec
+    total_elapsed=$(( $(date +%s) - SCRIPT_START ))
+    total_min=$(( total_elapsed / 60 ))
+    total_sec=$(( total_elapsed % 60 ))
+
     echo
     echo "============================================"
     echo "        Deployment Complete"
     echo "============================================"
     echo
-    echo "  System:  ${NAME:-} ${VERSION_ID} (${CODENAME}) / ${ARCH}"
+    echo "  System:   ${NAME:-} ${VERSION_ID} (${CODENAME}) / ${ARCH}"
+    echo "  Duration: ${total_min}m ${total_sec}s"
     echo
     command -v node   &>/dev/null && echo "  Node.js: $(node --version)"   || true
     command -v npm    &>/dev/null && echo "  npm:     $(npm --version)"    || true
@@ -1686,6 +1798,21 @@ CFGEOF
     require_root "${orig_args[@]}"
     detect_os
     check_version
+    timer_total_on
+
+    # ── 版本号显示 ──────────────────────────────────────────────
+    echo -e "  ${BD}${G}══════════════════════════════════════════════════${RS}"
+    echo -e "  ${BD}${G}  Claude Code CLI 部署工具  ${RS}"
+    echo -e "  ${BD}${G}  版本: ${Y}${SCRIPT_VERSION}${G}  |  ${D}$(date +%Y-%m-%d)${RS}"
+    echo -e "  ${BD}${G}══════════════════════════════════════════════════${RS}"
+    echo
+
+    # 环境变量覆盖（优先级: --config 文件 > 环境变量 > 交互提示）
+    [ -z "${APT_MIRROR:-}" ]          && APT_MIRROR="${CC_APT_MIRROR:-}"
+    [ -z "${NPM_MIRROR:-}" ]          && NPM_MIRROR="${CC_NPM_MIRROR:-}"
+    [ -z "${ANTHROPIC_API_KEY:-}" ]   && ANTHROPIC_API_KEY="${CC_API_KEY:-}"
+    [ -z "${ANTHROPIC_BASE_URL:-}" ]  && ANTHROPIC_BASE_URL="${CC_BASE_URL:-}"
+    [ -z "${ANTHROPIC_MODEL:-}" ]     && ANTHROPIC_MODEL="${CC_MODEL:-}"
 
     if [ -n "$config_file" ]; then
         read_config_file "$config_file"
