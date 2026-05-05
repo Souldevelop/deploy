@@ -1,0 +1,162 @@
+# Claude Code CLI 一键部署工具
+
+在 Debian / Ubuntu 系统上一键安装 [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code/overview) 的自动化脚本。
+
+## 系统要求
+
+| 系统 | 最低版本 |
+|------|----------|
+| Debian | 11 (bullseye) / 12 (bookworm) / 13 (trixie) |
+| Ubuntu | 18.04 (bionic) ~ 26.x |
+
+**硬件架构**: x86_64 (amd64)、aarch64 (arm64)
+
+## 功能特性
+
+- **一键部署** — 自动检测系统版本，选择合适的 Node.js 版本安装
+- **多源智能切换** — NodeSource apt 安装优先，不满足版本要求时自动回退到二进制 tarball
+- **中国网络优化** — 自动检测中国网络环境，使用阿里云 APT 镜像和 npmmirror
+- **无人值守部署** — 通过配置文件实现全程自动化安装，无需交互
+- **干净卸载** — 提供完整的卸载脚本
+
+## 快速开始
+
+### 方式一：远程一键安装（推荐）
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Souldevelop/deploy/master/deploy_claude.sh | bash -s -- \
+  --config <(curl -fsSL https://raw.githubusercontent.com/Souldevelop/deploy/master/deploy.conf)
+```
+
+此命令会自动处理：
+- **Debian 13（root，无 sudo）** → 直接执行
+- **Ubuntu（非 root，有 sudo）** → 自动提权（输入密码）
+- **Debian 13（非 root，无 sudo）** → 自动使用 `su` 提权（输入 root 密码）
+
+### 方式二：先下载再安装
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Souldevelop/deploy/master/deploy.conf -o /tmp/deploy.conf
+curl -fsSL https://raw.githubusercontent.com/Souldevelop/deploy/master/deploy_claude.sh -o /tmp/deploy_claude.sh
+sudo bash /tmp/deploy_claude.sh --config /tmp/deploy.conf
+```
+
+### 方式三：本地交互式菜单
+
+```bash
+git clone git@github.com:Souldevelop/deploy.git
+cd deploy
+sudo bash deploy_claude.sh
+```
+
+## 无人值守配置文件
+
+通过 `--config` 参数指定配置文件，可实现全程无人值守自动化部署。
+
+### 配置文件格式
+
+```
+# APT 镜像源（必填）
+APT_MIRROR=mirrors.aliyun.com
+
+# npm 镜像源（必填）
+NPM_MIRROR=https://registry.npmmirror.com/
+
+# Claude API 密钥（必填，从 https://console.anthropic.com/ 获取）
+ANTHROPIC_API_KEY=sk-ant-替换成你的真实密钥
+
+# API 地址（选填，默认 https://api.anthropic.com）
+ANTHROPIC_BASE_URL=https://api.anthropic.com
+
+# 默认模型（选填，默认 claude-sonnet-4-6-20250224）
+ANTHROPIC_MODEL=claude-sonnet-4-6-20250224
+```
+
+### 配置项说明
+
+| 配置项 | 必填 | 说明 |
+|--------|------|------|
+| `APT_MIRROR` | 是 | APT 镜像源地址，只填主机名 |
+| `NPM_MIRROR` | 是 | npm 注册表完整 URL |
+| `ANTHROPIC_API_KEY` | 否 | Claude API 密钥，不填则安装过程提示输入 |
+| `ANTHROPIC_BASE_URL` | 否 | API 端点地址，默认 `https://api.anthropic.com` |
+| `ANTHROPIC_MODEL` | 否 | 默认模型名，不填则安装过程提示选择 |
+
+## 命令行参数
+
+```
+deploy_claude.sh [OPTIONS]
+
+  --quick, -q           非交互式快速模式（自动检测最佳配置）
+  --china, -c           优先使用中国镜像
+  --config FILE         通过配置文件实现无人值守部署
+  --install, -i         复制脚本到 /usr/local/bin/
+  --help, -h            显示帮助信息
+  --help-config         显示配置文件格式说明
+
+远程使用（curl | bash）:
+  curl -fsSL <URL> | bash -s -- --quick --china
+  curl -fsSL <URL> | bash -s -- --config <(curl -fsSL <URL>)
+```
+
+## 安装流程
+
+1. **检测操作系统** — 自动识别 Debian/Ubuntu 版本和架构
+2. **安装系统依赖** — 安装 `curl`、`ca-certificates`、`git`
+3. **配置 APT 镜像源** — 切换到选择的镜像源
+4. **安装 Node.js** — NodeSource apt 优先，失败自动回退到二进制 tarball
+5. **配置 npm 镜像源** — 设置 npm registry 地址
+6. **安装 Claude Code CLI** — 通过 npm 全局安装 `@anthropic-ai/claude-code`
+7. **配置 Claude Code** — 写入 API 密钥、地址、模型等信息
+
+## Node.js 版本策略
+
+| 系统版本 | Node.js 版本 | 安装方式 |
+|----------|-------------|----------|
+| Debian 11 | 20.x | NodeSource 优先，回退到二进制包 |
+| Debian 12+ | 22.x | NodeSource 优先，回退到二进制包 |
+| Ubuntu 18.04 / 20.04 | 20.x | NodeSource 优先，回退到二进制包 |
+| Ubuntu 22.04+ | 22.x | NodeSource 优先，回退到二进制包 |
+
+**最低要求**: Node.js >= 18.x
+
+## 卸载
+
+```bash
+# 远程
+curl -fsSL https://raw.githubusercontent.com/Souldevelop/deploy/master/remove_claude.sh | sudo bash
+
+# 本地
+sudo bash remove_claude.sh
+
+# 自动模式（不交互）
+sudo bash remove_claude.sh --auto
+
+# 预览模式
+sudo bash remove_claude.sh --dry-run
+```
+
+## 中国网络优化
+
+在中国大陆使用，脚本会自动处理：
+
+- **APT 镜像** — 检测 Aliyun 镜像可达性，优先使用国内源
+- **npm 镜像** — 默认使用 `npmmirror.com`
+- **Node.js 下载** — `nodejs.org` 不可达时自动切换到国内镜像
+
+```bash
+# 指定中国网络模式
+curl -fsSL https://raw.githubusercontent.com/Souldevelop/deploy/master/deploy_claude.sh | bash -s -- --china
+```
+
+## 文件说明
+
+| 文件 | 说明 |
+|------|------|
+| `deploy_claude.sh` | 主部署脚本 |
+| `deploy.conf` | 配置文件示例 |
+| `remove_claude.sh` | 卸载脚本 |
+
+## 许可证
+
+MIT
