@@ -156,7 +156,7 @@ require_root() {
         if [ "$from_stdin" = true ]; then
             log_info "Downloading script for privilege elevation ..."
             local tmp="/tmp/deploy_claude.sh"
-            if ! curl -fsSL "$SELF_SOURCE" -o "$tmp" 2>/dev/null; then
+            if ! download_file "$SELF_SOURCE" "$tmp"; then
                 log_error "Failed to download script for elevation"
                 exit 1
             fi
@@ -229,6 +229,19 @@ run_retry() {
         log_warn "Retry ${attempt}/${max_attempt} in ${delay}s ..."
         sleep "$delay"
     done
+}
+
+# 下载文件辅助函数：优先 curl，退到 wget
+download_file() {
+    local url="$1" output="$2"
+    if command -v curl &>/dev/null; then
+        curl -fsSL "$url" -o "$output" 2>/dev/null
+    elif command -v wget &>/dev/null; then
+        wget -qO "$output" "$url" 2>/dev/null
+    else
+        log_error "Neither curl nor wget is available"
+        return 1
+    fi
 }
 
 # ---------------------------------------------------------------------------
@@ -694,7 +707,7 @@ install_system_deps() {
         apt-get update -qq 2>/dev/null || log_warn "apt update failed — will retry later"
     fi
 
-    local pkgs=(curl ca-certificates git)
+    local pkgs=(curl wget ca-certificates git)
 
     local install_list=()
     for pkg in "${pkgs[@]}"; do
