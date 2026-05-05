@@ -104,10 +104,13 @@ log_step()  { echo -e "\n ${AR}  ${BD}$*${RS}"; }
 log_dim()   { echo -e "${D}$*${RS}"; }
 
 confirm_yes() {
-    local prompt="$1" default="${2:-Y}"
-    local ans
+    local prompt="$1" default="${2:-Y}" ans
     while true; do
-        read -r -p "$(echo -e " ${IN}  ${prompt} [${default}] ")" ans
+        if [ -t 0 ]; then
+            read -r -p "$(echo -e " ${IN}  ${prompt} [${default}] ")" ans
+        else
+            read -r -p "$(echo -e " ${IN}  ${prompt} [${default}] ")" ans </dev/tty
+        fi
         ans="${ans:-$default}"
         case "${ans,,}" in
             y|yes) return 0 ;;
@@ -118,11 +121,16 @@ confirm_yes() {
 }
 
 pick_number() {
-    local max="$1"
-    local n
-    read -r -p "$(echo -e " ${IN}  Enter choice [0-${max}]: ")" n
+    local max="$1" n
+    if [ -t 0 ]; then
+        read -r -p "$(echo -e " ${IN}  Enter choice [0-${max}]: ")" n
+    else
+        read -r -p "$(echo -e " ${IN}  Enter choice [0-${max}]: ")" n </dev/tty
+    fi
     echo "${n:-0}"
 }
+
+# 别名：在管道模式下也一样读取终端
 
 require_root() {
     if [ "$(id -u)" -ne 0 ]; then
@@ -231,17 +239,29 @@ run_retry() {
     done
 }
 
-# 下载文件辅助函数：优先 curl，退到 wget
+# 下载文件辅助函数：优先 curl，失败时退到 wget
 download_file() {
     local url="$1" output="$2"
     if command -v curl &>/dev/null; then
-        curl -fsSL "$url" -o "$output" 2>/dev/null
-    elif command -v wget &>/dev/null; then
-        wget -qO "$output" "$url" 2>/dev/null
-    else
-        log_error "Neither curl nor wget is available"
-        return 1
+        curl -fsSL "$url" -o "$output" 2>/dev/null && return 0
+        log_dim "  curl failed, trying wget ..."
     fi
+    if command -v wget &>/dev/null; then
+        wget -qO "$output" "$url" 2>/dev/null && return 0
+    fi
+    log_error "Failed to download ${url}"
+    return 1
+}
+
+# 交互式读输入：始终从终端读取（兼容管道模式 stdin 被占用的情况）
+read_input() {
+    local prompt="$1" var_name="${2:-REPLY}" val
+    if [ -t 0 ]; then
+        read -r -p "$prompt" val
+    else
+        read -r -p "$prompt" val </dev/tty
+    fi
+    printf -v "$var_name" "%s" "$val"
 }
 
 # ---------------------------------------------------------------------------
@@ -1098,7 +1118,7 @@ configure_claude_code() {
         echo
         echo "  API Key: (get one at https://console.anthropic.com/)"
         if confirm_yes "  Enter API Key?" "Y"; then
-            read -r -p "  Key: " api_key
+            read_input "  Key: " api_key
         fi
     fi
 
@@ -1109,7 +1129,7 @@ configure_claude_code() {
         echo "    Examples:"
         echo "      https://api.anthropic.com           (official)"
         echo "      https://your-proxy.com/anthropic     (custom gateway)"
-        read -r -p "  URL: " base_url
+        read_input "  URL: " base_url
         [ -z "$base_url" ] && base_url="https://api.anthropic.com"
     fi
 
@@ -1132,7 +1152,7 @@ configure_claude_code() {
             3) model_name="claude-haiku-4-5-20251001" ;;
             4) model_name="deepseek-v4-flash" ;;
             5) model_name="deepseek-v4-pro" ;;
-            6) read -r -p "  Model name: " model_name ;;
+            6) read_input "  Model name: " model_name ;;
             *) model_name="" ;;
         esac
     fi
@@ -1269,7 +1289,7 @@ reconfigure_claude() {
     # --- API Key ---
     if [ "$pick" -eq 1 ] || [ "$pick" -eq 4 ]; then
         echo
-        read -r -p "  API Key (enter to keep current): " new_key
+        read_input "  API Key (enter to keep current): " new_key
         [ -n "$new_key" ] && curr_key="$new_key"
     fi
 
@@ -1277,7 +1297,7 @@ reconfigure_claude() {
     if [ "$pick" -eq 2 ] || [ "$pick" -eq 4 ]; then
         echo
         echo "  Base URL (enter to keep current):"
-        read -r -p "  [${curr_url:-https://api.anthropic.com}]: " new_url
+        read_input "  [${curr_url:-https://api.anthropic.com}]: " new_url
         [ -n "$new_url" ] && curr_url="$new_url"
     fi
 
@@ -1300,7 +1320,7 @@ reconfigure_claude() {
             3) curr_model="claude-haiku-4-5-20251001" ;;
             4) curr_model="deepseek-v4-flash" ;;
             5) curr_model="deepseek-v4-pro" ;;
-            6) read -r -p "  Model name: " curr_model ;;
+            6) read_input "  Model name: " curr_model ;;
             0) ;;  # keep current
         esac
     fi
