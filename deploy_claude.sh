@@ -243,10 +243,10 @@ run_retry() {
 #   # npm registry URL
 #   NPM_MIRROR=https://registry.npmmirror.com/
 #
-#   # Claude Code credentials (optional — prompts if omitted)
-#   ANTHROPIC_API_KEY=sk-ant-...
-#   ANTHROPIC_BASE_URL=https://api.anthropic.com
-#   ANTHROPIC_MODEL=claude-sonnet-4-6-20250224
+#   # Claude Code 凭证（可选——不填则在安装时提示输入，推荐）
+#   # ANTHROPIC_API_KEY=sk-ant-...
+#   # ANTHROPIC_BASE_URL=https://api.anthropic.com
+#   # ANTHROPIC_MODEL=claude-sonnet-4-6-20250224
 #
 # Then run: sudo bash deploy_claude.sh --config myconfig.conf
 
@@ -1622,22 +1622,17 @@ Required (at minimum, one of APT_MIRROR or NPM_MIRROR must be set):
                           https://registry.npmmirror.com/
                           https://registry.npmjs.org/
 
-Optional (Claude Code credentials — prompts interactively if omitted):
+Optional (Claude Code credentials — leave unset to be prompted during install):
 
-  ANTHROPIC_API_KEY     Your Anthropic API key (sk-ant-...)
-  ANTHROPIC_BASE_URL    API endpoint URL (default: https://api.anthropic.com)
-  ANTHROPIC_MODEL       Model name (default: claude-sonnet-4-6-20250224)
+  # ANTHROPIC_API_KEY=sk-ant-0123456789abcdef
+  # ANTHROPIC_BASE_URL=https://api.anthropic.com
+  # ANTHROPIC_MODEL=claude-sonnet-4-6-20250224
 
 Example config file:
 
   # Use Aliyun APT mirror + npmmirror (China-optimised)
   APT_MIRROR=mirrors.aliyun.com
   NPM_MIRROR=https://registry.npmmirror.com/
-
-  # Claude Code credentials
-  ANTHROPIC_API_KEY=sk-ant-0123456789abcdef
-  ANTHROPIC_BASE_URL=https://api.anthropic.com
-  ANTHROPIC_MODEL=claude-sonnet-4-6-20250224
 
 Run:
 
