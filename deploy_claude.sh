@@ -59,6 +59,9 @@ USE_CHINA=false
 # 可通过环境变量 BOOTSTRAP_SELF_URL 覆盖。
 readonly SELF_SOURCE="${BOOTSTRAP_SELF_URL:-https://raw.githubusercontent.com/Souldevelop/deploy/master/deploy_claude.sh}"
 
+# 脚本版本号（更新时请修改此值）
+readonly VERSION="2.0.0"
+
 # ---------------------------------------------------------------------------
 # APT mirror presets
 # ---------------------------------------------------------------------------
@@ -1796,6 +1799,13 @@ CFGEOF
     detect_os
     check_version
     timer_total_on
+
+    # ── 版本号显示 ──────────────────────────────────────────────
+    echo -e "  ${BD}${C}══════════════════════════════════════════════════${RS}"
+    echo -e "  ${BD}${C}  Claude Code CLI 部署工具  ${RS}"
+    echo -e "  ${BD}${C}  版本: ${Y}${VERSION}${C}  |  ${D}${C}${BD}$(date +%Y-%m-%d)${RS}"
+    echo -e "  ${BD}${C}══════════════════════════════════════════════════${RS}"
+    echo
 
     # 环境变量覆盖（优先级: --config 文件 > 环境变量 > 交互提示）
     [ -z "${APT_MIRROR:-}" ]          && APT_MIRROR="${CC_APT_MIRROR:-}"
