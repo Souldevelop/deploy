@@ -60,7 +60,7 @@ USE_CHINA=false
 readonly SELF_SOURCE="${BOOTSTRAP_SELF_URL:-https://raw.githubusercontent.com/Souldevelop/deploy/master/deploy_claude.sh}"
 
 # 脚本版本号（更新时请修改此值）
-readonly VERSION="2.0.0"
+readonly SCRIPT_VERSION="2.0.0"
 
 # ---------------------------------------------------------------------------
 # APT mirror presets
@@ -1803,7 +1803,7 @@ CFGEOF
     # ── 版本号显示 ──────────────────────────────────────────────
     echo -e "  ${BD}${C}══════════════════════════════════════════════════${RS}"
     echo -e "  ${BD}${C}  Claude Code CLI 部署工具  ${RS}"
-    echo -e "  ${BD}${C}  版本: ${Y}${VERSION}${C}  |  ${D}${C}${BD}$(date +%Y-%m-%d)${RS}"
+    echo -e "  ${BD}${C}  版本: ${Y}${SCRIPT_VERSION}${C}  |  ${D}$(date +%Y-%m-%d)${RS}"
     echo -e "  ${BD}${C}══════════════════════════════════════════════════${RS}"
     echo
 
