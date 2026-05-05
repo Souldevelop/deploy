@@ -60,7 +60,7 @@ USE_CHINA=false
 readonly SELF_SOURCE="${BOOTSTRAP_SELF_URL:-https://raw.githubusercontent.com/Souldevelop/deploy/master/deploy_claude.sh}"
 
 # 脚本版本号（更新时请修改此值）
-readonly SCRIPT_VERSION="2.0.0"
+readonly SCRIPT_VERSION="2.0.1"
 
 # ---------------------------------------------------------------------------
 # APT mirror presets
@@ -1801,11 +1801,11 @@ CFGEOF
     timer_total_on
 
     # ── 版本号显示 ──────────────────────────────────────────────
-    echo -e "  ${BD}${G}══════════════════════════════════════════════════${RS}"
-    echo -e "  ${BD}${G}  Claude Code CLI 部署工具  ${RS}"
-    echo -e "  ${BD}${G}  版本: ${Y}${SCRIPT_VERSION}${G}  |  ${D}$(date +%Y-%m-%d)${RS}"
-    echo -e "  ${BD}${G}  开发者: ${Y}ReverseKing${G}  |  ${D}QQ: 441673604${RS}"
-    echo -e "  ${BD}${G}══════════════════════════════════════════════════${RS}"
+    echo -e " ${BD}${G}═══════════════════════════════════════════════════${RS}"
+    echo -e "${BD}${G}     Claude Code CLI 部署工具  v${SCRIPT_VERSION}  $(date +%Y-%m-%d)${RS}"
+    echo ""
+    echo -e "${BD}${G}          Developer: ReverseKing   QQ: 441673604${RS}"
+    echo -e " ${BD}${G}═══════════════════════════════════════════════════${RS}"
     echo
 
     # 环境变量覆盖（优先级: --config 文件 > 环境变量 > 交互提示）
