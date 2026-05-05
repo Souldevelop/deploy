@@ -24,8 +24,13 @@
 ### 方式一：远程一键安装（推荐）
 
 ```bash
+# 使用 curl
 curl -fsSL https://raw.githubusercontent.com/Souldevelop/deploy/master/deploy_claude.sh | bash -s -- \
   --config <(curl -fsSL https://raw.githubusercontent.com/Souldevelop/deploy/master/deploy.conf)
+
+# 使用 wget（系统无 curl 时）
+wget -qO- https://raw.githubusercontent.com/Souldevelop/deploy/master/deploy_claude.sh | bash -s -- \
+  --config <(wget -qO- https://raw.githubusercontent.com/Souldevelop/deploy/master/deploy.conf)
 ```
 
 此命令会自动处理：
@@ -36,8 +41,14 @@ curl -fsSL https://raw.githubusercontent.com/Souldevelop/deploy/master/deploy_cl
 ### 方式二：先下载再安装
 
 ```bash
+# 使用 curl
 curl -fsSL https://raw.githubusercontent.com/Souldevelop/deploy/master/deploy.conf -o /tmp/deploy.conf
 curl -fsSL https://raw.githubusercontent.com/Souldevelop/deploy/master/deploy_claude.sh -o /tmp/deploy_claude.sh
+sudo bash /tmp/deploy_claude.sh --config /tmp/deploy.conf
+
+# 使用 wget
+wget -qO /tmp/deploy.conf https://raw.githubusercontent.com/Souldevelop/deploy/master/deploy.conf
+wget -qO /tmp/deploy_claude.sh https://raw.githubusercontent.com/Souldevelop/deploy/master/deploy_claude.sh
 sudo bash /tmp/deploy_claude.sh --config /tmp/deploy.conf
 ```
 
@@ -94,9 +105,11 @@ deploy_claude.sh [OPTIONS]
   --help, -h            显示帮助信息
   --help-config         显示配置文件格式说明
 
-远程使用（curl | bash）:
+远程使用:
   curl -fsSL <URL> | bash -s -- --quick --china
   curl -fsSL <URL> | bash -s -- --config <(curl -fsSL <URL>)
+  wget -qO- <URL> | bash -s -- --quick --china
+  wget -qO- <URL> | bash -s -- --config <(wget -qO- <URL>)
 ```
 
 ## 安装流程
@@ -123,10 +136,13 @@ deploy_claude.sh [OPTIONS]
 ## 卸载
 
 ```bash
-# 远程
+# 使用 curl
 curl -fsSL https://raw.githubusercontent.com/Souldevelop/deploy/master/remove_claude.sh | sudo bash
 
-# 本地
+# 使用 wget
+wget -qO- https://raw.githubusercontent.com/Souldevelop/deploy/master/remove_claude.sh | sudo bash
+
+# 本地执行
 sudo bash remove_claude.sh
 
 # 自动模式（不交互）
@@ -145,8 +161,11 @@ sudo bash remove_claude.sh --dry-run
 - **Node.js 下载** — `nodejs.org` 不可达时自动切换到国内镜像
 
 ```bash
-# 指定中国网络模式
+# 使用 curl
 curl -fsSL https://raw.githubusercontent.com/Souldevelop/deploy/master/deploy_claude.sh | bash -s -- --china
+
+# 使用 wget
+wget -qO- https://raw.githubusercontent.com/Souldevelop/deploy/master/deploy_claude.sh | bash -s -- --china
 ```
 
 ## 文件说明
