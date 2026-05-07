@@ -169,7 +169,7 @@ function Install-NodeJS {
         pause; exit 1
     }
 
-    $arch = if ([Environment]::Is64BitOperatingSystem) { 'x64' } else { 'x86' }
+    $arch = if ($env:PROCESSOR_ARCHITECTURE -eq 'ARM64' -or $env:PROCESSOR_IDENTIFIER -match 'ARM64') { 'arm64' } elseif ([Environment]::Is64BitOperatingSystem) { 'x64' } else { 'x86' }
 
     # Use China mirror if NPM_MIRROR is set to npmmirror
     if ($config.ContainsKey('NPM_MIRROR') -and $config['NPM_MIRROR'] -match 'npmmirror') {

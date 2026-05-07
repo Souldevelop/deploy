@@ -47,6 +47,7 @@ DISTRO_ID=""
 VERSION_ID=""
 CODENAME=""
 ARCH=""
+ARCH_DISPLAY=""
 APT_MIRROR=""
 NPM_MIRROR=""
 USE_CHINA=false
@@ -398,6 +399,13 @@ detect_os() {
     VERSION_ID="${VERSION_ID:-}"
     ARCH="$(uname -m)"
 
+    # Normalise architecture for display
+    case "$ARCH" in
+        aarch64) ARCH_DISPLAY="arm64" ;;
+        x86_64)  ARCH_DISPLAY="amd64" ;;
+        *)       ARCH_DISPLAY="$ARCH" ;;
+    esac
+
     case "$DISTRO_ID" in
         debian)
             CODENAME="$(grep -oP 'VERSION_CODENAME=\K.*' /etc/os-release 2>/dev/null || true)"
@@ -426,7 +434,7 @@ detect_os() {
         exit 1
     fi
 
-    log_ok "${NAME} ${VERSION_ID} (${CODENAME}) / ${ARCH}"
+    log_ok "${NAME} ${VERSION_ID} (${CODENAME}) / ${ARCH_DISPLAY}"
 }
 
 # ---------------------------------------------------------------------------
@@ -1480,7 +1488,7 @@ print_summary() {
     echo "        Deployment Complete"
     echo "============================================"
     echo
-    echo "  System:   ${NAME:-} ${VERSION_ID} (${CODENAME}) / ${ARCH}"
+    echo "  System:   ${NAME:-} ${VERSION_ID} (${CODENAME}) / ${ARCH_DISPLAY}"
     echo "  Duration: ${total_min}m ${total_sec}s"
     echo
     command -v node   &>/dev/null && echo "  Node.js: $(node --version)"   || true
@@ -1516,7 +1524,7 @@ show_menu() {
  Debian / Ubuntu
 ============================================
 
-  System: ${NAME:-} ${VERSION_ID} (${CODENAME}) ${ARCH}
+  System: ${NAME:-} ${VERSION_ID} (${CODENAME}) ${ARCH_DISPLAY}
 
   Choose deployment mode:
 
