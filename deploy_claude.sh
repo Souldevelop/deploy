@@ -877,6 +877,8 @@ install_nodejs() {
     fi
 
     # ---- Method 1: NodeSource (convenient, integrates with apt) ----
+    # ARM 架构跳过 NodeSource：国内 ARM 镜像不稳定，apt install 经常卡死
+    if [ "$ARCH" != "aarch64" ] && [ "$ARCH" != "armv7l" ] && [ "$ARCH" != "armhf" ]; then
     if command -v curl &>/dev/null; then
         local ns_url="https://deb.nodesource.com/setup_${node_major}.x"
         log_info "Trying NodeSource ${node_major}.x ..."
