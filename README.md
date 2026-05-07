@@ -1,6 +1,6 @@
 # Claude Code CLI 一键部署工具
 
-在 Debian / Ubuntu 系统上一键安装 [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code/overview) 的自动化脚本。
+在 Linux (Debian / Ubuntu) 和 Windows 上一键安装 [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code/overview) 的自动化脚本。
 
 ## 系统要求
 
@@ -8,16 +8,18 @@
 |------|----------|
 | Debian | 11 (bullseye) / 12 (bookworm) / 13 (trixie) |
 | Ubuntu | 18.04 (bionic) ~ 26.x |
+| Windows | 10 / 11、Windows Server 2016+ |
 
-**硬件架构**: x86_64 (amd64)、aarch64 (arm64)
+**硬件架构**: x86_64 (amd64)、aarch64 (arm64，仅 Linux)
 
 ## 功能特性
 
 - **一键部署** — 自动检测系统版本，选择合适的 Node.js 版本安装
-- **多源智能切换** — NodeSource apt 安装优先，不满足版本要求时自动回退到二进制 tarball
-- **中国网络优化** — 自动检测中国网络环境，使用阿里云 APT 镜像和 npmmirror
+- **多源智能切换** — Linux 下 NodeSource apt 安装优先，不满足版本要求时自动回退到二进制 tarball；Windows 下 MSI 首选，镜像不可达自动回退官方源
+- **中国网络优化** — 自动检测中国网络环境，使用阿里云 APT 镜像 / npmmirror / 国内 Node.js 镜像
 - **无人值守部署** — 通过配置文件实现全程自动化安装，无需交互
-- **干净卸载** — 提供完整的卸载脚本
+- **CC-Switch 集成** — Windows 版额外集成 AI API 切换工具 CC-Switch 自动安装
+- **干净卸载** — Linux 提供完整的卸载脚本（`remove_claude.sh`）
 
 ## 快速开始
 
@@ -52,13 +54,39 @@ wget -qO /tmp/deploy_claude.sh https://raw.githubusercontent.com/Souldevelop/dep
 sudo bash /tmp/deploy_claude.sh --config /tmp/deploy.conf
 ```
 
-### 方式三：本地交互式菜单
+### 方式三：本地交互式菜单（Linux）
 
 ```bash
 git clone git@github.com:Souldevelop/deploy.git
 cd deploy
 sudo bash deploy_claude.sh
 ```
+
+### 方式四：Windows 部署
+
+Windows 下使用 PowerShell 脚本，支持自动提权和管理员安装。
+
+```powershell
+# 克隆仓库后运行
+git clone git@github.com:Souldevelop/deploy.git
+cd deploy
+.\deploy_claude.bat
+
+# 或直接运行 PowerShell 脚本
+powershell -NoProfile -ExecutionPolicy Bypass -File deploy.ps1
+
+# 指定配置文件运行
+powershell -NoProfile -ExecutionPolicy Bypass -File deploy.ps1 -ConfigFile deploy.conf
+```
+
+**Windows 系统特别说明：**
+
+- 脚本会自动请求管理员权限（安装 Node.js 需要）
+- 提供 `deploy_claude.bat` 批处理启动器，可直接双击运行
+- Node.js 通过 MSI 安装包静默安装，可从 nodejs.org 或 npmmirror 下载
+- 支持 `deploy.conf` 配置文件（格式与 Linux 版相同）
+- 额外集成 CC-Switch（AI API 切换工具）自动安装
+- **不支持通过远程管道一键安装**（PowerShell 远程执行策略限制），请先下载到本地再运行
 
 ## 无人值守配置文件
 
@@ -114,6 +142,8 @@ deploy_claude.sh [OPTIONS]
 
 ## 安装流程
 
+### Linux
+
 1. **检测操作系统** — 自动识别 Debian/Ubuntu 版本和架构
 2. **安装系统依赖** — 安装 `curl`、`ca-certificates`、`git`
 3. **配置 APT 镜像源** — 切换到选择的镜像源
@@ -121,6 +151,17 @@ deploy_claude.sh [OPTIONS]
 5. **配置 npm 镜像源** — 设置 npm registry 地址
 6. **安装 Claude Code CLI** — 通过 npm 全局安装 `@anthropic-ai/claude-code`
 7. **配置 Claude Code** — 写入 API 密钥、地址、模型等信息
+
+### Windows
+
+1. **提权** — 自动检测管理员权限，非管理员时弹出 UAC 提权窗口
+2. **加载配置** — 解析 `deploy.conf` 配置文件
+3. **安装 Node.js** — 从 nodejs.org 或 npmmirror 下载 MSI 静默安装，带进度显示
+4. **配置 npm 镜像源** — 设置 npm registry 地址
+5. **安装 Claude Code CLI** — 通过 npm 全局安装 `@anthropic-ai/claude-code`，失败自动重试
+6. **安装 CC-Switch** — 从 GitHub 下载最新 MSI 并静默安装 AI API 切换工具
+7. **配置 Claude Code** — 写入 API 密钥、地址、模型等信息（交互式或配置文件中读取）
+8. **清理临时文件** — 删除下载的 MSI 安装包
 
 ## Node.js 版本策略
 
@@ -172,9 +213,11 @@ wget -qO- https://raw.githubusercontent.com/Souldevelop/deploy/master/deploy_cla
 
 | 文件 | 说明 |
 |------|------|
-| `deploy_claude.sh` | 主部署脚本 |
-| `deploy.conf` | 配置文件示例 |
-| `remove_claude.sh` | 卸载脚本 |
+| `deploy_claude.sh` | Linux 主部署脚本（bash） |
+| `deploy_claude.bat` | Windows 批处理启动器 |
+| `deploy.ps1` | Windows PowerShell 部署脚本 |
+| `deploy.conf` | 配置文件示例（Linux / Windows 通用） |
+| `remove_claude.sh` | Linux 卸载脚本 |
 
 ## 许可证
 
