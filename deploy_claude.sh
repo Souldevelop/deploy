@@ -994,10 +994,15 @@ install_nodejs_binary() {
         done
     fi
 
-    # Retry with npmmirror China mirror if primary failed
-    if [ -z "$version" ] && [ "$base_url" = "https://nodejs.org/dist" ]; then
-        log_warn "Primary mirror unreachable, trying npmmirror China mirror ..."
-        base_url="https://mirrors.npmmirror.com/nodejs"
+    # Retry with the alternative mirror when primary fails
+    if [ -z "$version" ]; then
+        local alt_url
+        case "$base_url" in
+            *npmmirror*) alt_url="https://nodejs.org/dist" ;;
+            *)           alt_url="https://mirrors.npmmirror.com/nodejs" ;;
+        esac
+        log_warn "Primary mirror unreachable, trying $(echo "$alt_url" | sed 's|https://||') ..."
+        base_url="$alt_url"
         ver_list="$(curl -fsL --connect-timeout 10 --max-time 30 "${base_url}/index.json" 2>/dev/null || true)"
         if [ -n "$ver_list" ]; then
             version="$(echo "$ver_list" | grep -oP "\"v${major}\.[0-9]+\.[0-9]+\"" | tr -d '"' | sort -V | tail -1 || true)"
@@ -1007,7 +1012,7 @@ install_nodejs_binary() {
                 try_url="${base_url}/v${try_ver}/node-v${try_ver}-linux-${arch}.tar.gz"
                 if curl -sfL --connect-timeout 5 --max-time 15 -o /dev/null "${try_url}" 2>/dev/null; then
                     version="v${try_ver}"
-                    log_dim "  Found ${version} (China mirror)"
+                    log_dim "  Found ${version} (alternative mirror)"
                     break
                 fi
             done
@@ -1025,18 +1030,18 @@ install_nodejs_binary() {
     log_info "Downloading Node.js ${version} (binary tarball) ..."
     if ! curl -fL --connect-timeout 10 --max-time 180 --progress-bar \
         "$download_url" -o "/tmp/${filename}" 2>/dev/null; then
-        if [ "$base_url" = "https://nodejs.org/dist" ]; then
-            local alt_dl_url="https://mirrors.npmmirror.com/nodejs/${version}/${filename}"
-            log_warn "Download from nodejs.org failed, trying China mirror ..."
-            curl -fL --connect-timeout 10 --max-time 180 --progress-bar \
-                "$alt_dl_url" -o "/tmp/${filename}" || {
-                log_error "Download failed, check network connectivity"
-                return 1
-            }
-        else
+        # Try alternative mirror
+        local alt_dl_url
+        case "$base_url" in
+            *npmmirror*) alt_dl_url="https://nodejs.org/dist/${version}/${filename}" ;;
+            *)           alt_dl_url="https://mirrors.npmmirror.com/nodejs/${version}/${filename}" ;;
+        esac
+        log_warn "Download from primary failed, trying alternative mirror ..."
+        curl -fL --connect-timeout 10 --max-time 180 --progress-bar \
+            "$alt_dl_url" -o "/tmp/${filename}" || {
             log_error "Download failed, check network connectivity"
             return 1
-        fi
+        }
     fi
 
     log_info "Extracting to /usr/local/ ..."
