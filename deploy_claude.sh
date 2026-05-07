@@ -876,10 +876,12 @@ install_nodejs() {
         log_warn "Node.js ${current_ver} is too old (need 18+), upgrading"
     fi
 
+    # ARM 架构：NodeSource 国内镜像不稳定，跳过 apt 直接走二进制 tarball
+    if [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "armv7l" ] || [ "$ARCH" = "armhf" ]; then
+        log_info "ARM (${ARCH_DISPLAY}) — skipping NodeSource, using binary tarball ..."
+
     # ---- Method 1: NodeSource (convenient, integrates with apt) ----
-    # ARM 架构跳过 NodeSource：国内 ARM 镜像不稳定，apt install 经常卡死
-    if [ "$ARCH" != "aarch64" ] && [ "$ARCH" != "armv7l" ] && [ "$ARCH" != "armhf" ]; then
-    if command -v curl &>/dev/null; then
+    elif command -v curl &>/dev/null; then
         local ns_url="https://deb.nodesource.com/setup_${node_major}.x"
         log_info "Trying NodeSource ${node_major}.x ..."
         if curl -fL --connect-timeout 10 --max-time 60 --progress-bar \
