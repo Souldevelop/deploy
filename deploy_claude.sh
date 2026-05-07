@@ -62,7 +62,7 @@ USE_CHINA=false
 readonly SELF_SOURCE="${BOOTSTRAP_SELF_URL:-https://raw.githubusercontent.com/Souldevelop/deploy/master/deploy_claude.sh}"
 
 # 脚本版本号（更新时请修改此值）
-readonly SCRIPT_VERSION="2.1.2"
+readonly SCRIPT_VERSION="2.1.3"
 
 # ---------------------------------------------------------------------------
 # APT mirror presets
@@ -1708,7 +1708,12 @@ run_quick_mode() {
     else
         case "$DISTRO_ID" in
             debian) APT_MIRROR="deb.debian.org" ;;
-            ubuntu) APT_MIRROR="archive.ubuntu.com" ;;
+            ubuntu)
+	            if [ "$APT_REPO_PATH" = "ubuntu-ports" ]; then
+	                APT_MIRROR="ports.ubuntu.com"
+	            else
+	                APT_MIRROR="archive.ubuntu.com"
+	            fi ;;
         esac
         NPM_MIRROR="https://registry.npmjs.org/"
     fi
