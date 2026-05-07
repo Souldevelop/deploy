@@ -62,7 +62,7 @@ USE_CHINA=false
 readonly SELF_SOURCE="${BOOTSTRAP_SELF_URL:-https://raw.githubusercontent.com/Souldevelop/deploy/master/deploy_claude.sh}"
 
 # 脚本版本号（更新时请修改此值）
-readonly SCRIPT_VERSION="2.0.1"
+readonly SCRIPT_VERSION="2.1.1"
 
 # ---------------------------------------------------------------------------
 # APT mirror presets
