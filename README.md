@@ -1,22 +1,25 @@
-# Claude Code CLI 一键部署工具
+# Claude Code CLI 一键部署工具 **v2.2.3**
 
 在 Linux (Debian / Ubuntu) 和 Windows 上一键安装 [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code/overview) 的自动化脚本。
 
+支持 **x86_64 (amd64)** 和 **ARM64 (aarch64)** 双架构。
+
 ## 系统要求
 
-| 系统 | 最低版本 |
-|------|----------|
-| Debian | 11 (bullseye) / 12 (bookworm) / 13 (trixie) |
-| Ubuntu | 18.04 (bionic) ~ 26.x |
-| Windows | 10 / 11、Windows Server 2016+ |
+| 系统 | 最低版本 | 支持架构 |
+|------|----------|----------|
+| Debian | 11 (bullseye) / 12 (bookworm) / 13 (trixie) | amd64、arm64 |
+| Ubuntu | 18.04 (bionic) ~ 26.x | amd64、arm64 |
+| Windows | 10 / 11、Windows Server 2016+ | amd64、arm64 |
 
-**硬件架构**: x86_64 (amd64)、aarch64 (arm64，仅 Linux)
+> **ARM64 支持**: Linux 端在树莓派、Orange Pi、AWS Graviton 等 ARM64 设备上测试通过；Windows 端支持 Surface Pro X/9/11 等 ARM64 Windows 设备。
 
 ## 功能特性
 
-- **一键部署** — 自动检测系统版本，选择合适的 Node.js 版本安装
-- **多源智能切换** — Linux 下 NodeSource apt 安装优先，不满足版本要求时自动回退到二进制 tarball；Windows 下 MSI 首选，镜像不可达自动回退官方源
-- **中国网络优化** — 自动检测中国网络环境，使用阿里云 APT 镜像 / npmmirror / 国内 Node.js 镜像
+- **一键部署** — 自动检测系统版本和架构，选择合适的安装方式
+- **双架构支持** — Linux ARM64 自动识别并使用 `ports.ubuntu.com` 源；Windows ARM64 自动下载 `arm64` 版 Node.js MSI
+- **多源智能切换** — Linux 下 NodeSource apt 安装优先，ARM 架构/J段回退到二进制 tarball；安装源双向回退（npmmirror ↔ nodejs.org）
+- **中国网络优化** — 自动检测中国网络环境，使用国内 APT / npm / Node.js 镜像
 - **无人值守部署** — 通过配置文件实现全程自动化安装，无需交互
 - **CC-Switch 集成** — Windows 版额外集成 AI API 切换工具 CC-Switch 自动安装
 - **干净卸载** — Linux 提供完整的卸载脚本（`remove_claude.sh`）
@@ -84,6 +87,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File deploy.ps1 -ConfigFile deplo
 - 脚本会自动请求管理员权限（安装 Node.js 需要）
 - 提供 `deploy_claude.bat` 批处理启动器，可直接双击运行
 - Node.js 通过 MSI 安装包静默安装，可从 nodejs.org 或 npmmirror 下载
+- **ARM64 Windows** 自动下载 `arm64` 版 Node.js MSI
 - 支持 `deploy.conf` 配置文件（格式与 Linux 版相同）
 - 额外集成 CC-Switch（AI API 切换工具）自动安装
 - **不支持通过远程管道一键安装**（PowerShell 远程执行策略限制），请先下载到本地再运行
@@ -144,10 +148,10 @@ deploy_claude.sh [OPTIONS]
 
 ### Linux
 
-1. **检测操作系统** — 自动识别 Debian/Ubuntu 版本和架构
+1. **检测操作系统** — 自动识别 Debian/Ubuntu 版本和架构（amd64 / arm64）
 2. **安装系统依赖** — 安装 `curl`、`ca-certificates`、`git`
-3. **配置 APT 镜像源** — 切换到选择的镜像源
-4. **安装 Node.js** — NodeSource apt 优先，失败自动回退到二进制 tarball
+3. **配置 APT 镜像源** — 切换到选择的镜像源（ARM Ubuntu 自动使用 `ubuntu-ports`）
+4. **安装 Node.js** — amd64 优先 NodeSource apt，arm64 直接走二进制 tarball；安装源双向回退
 5. **配置 npm 镜像源** — 设置 npm registry 地址
 6. **安装 Claude Code CLI** — 通过 npm 全局安装 `@anthropic-ai/claude-code`
 7. **配置 Claude Code** — 写入 API 密钥、地址、模型等信息
@@ -156,7 +160,7 @@ deploy_claude.sh [OPTIONS]
 
 1. **提权** — 自动检测管理员权限，非管理员时弹出 UAC 提权窗口
 2. **加载配置** — 解析 `deploy.conf` 配置文件
-3. **安装 Node.js** — 从 nodejs.org 或 npmmirror 下载 MSI 静默安装，带进度显示
+3. **安装 Node.js** — 根据架构（x64 / arm64）下载对应 MSI 静默安装，带进度显示
 4. **配置 npm 镜像源** — 设置 npm registry 地址
 5. **安装 Claude Code CLI** — 通过 npm 全局安装 `@anthropic-ai/claude-code`，失败自动重试
 6. **安装 CC-Switch** — 从 GitHub 下载最新 MSI 并静默安装 AI API 切换工具
@@ -165,14 +169,31 @@ deploy_claude.sh [OPTIONS]
 
 ## Node.js 版本策略
 
-| 系统版本 | Node.js 版本 | 安装方式 |
-|----------|-------------|----------|
-| Debian 11 | 20.x | NodeSource 优先，回退到二进制包 |
-| Debian 12+ | 22.x | NodeSource 优先，回退到二进制包 |
-| Ubuntu 18.04 / 20.04 | 20.x | NodeSource 优先，回退到二进制包 |
-| Ubuntu 22.04+ | 22.x | NodeSource 优先，回退到二进制包 |
+| 系统版本 | Node.js 版本 | amd64 安装方式 | arm64 安装方式 |
+|----------|-------------|----------------|----------------|
+| Debian 11 | 20.x | NodeSource → 二进制回退 | 二进制 tarball |
+| Debian 12+ | 22.x | NodeSource → 二进制回退 | 二进制 tarball |
+| Ubuntu 18.04 / 20.04 | 20.x | NodeSource → 二进制回退 | 二进制 tarball |
+| Ubuntu 22.04+ | 22.x | NodeSource → 二进制回退 | 二进制 tarball |
+| Windows | 22.x | MSI 安装 | arm64 MSI 安装 |
 
 **最低要求**: Node.js >= 18.x
+
+> **ARM 说明**: Linux ARM 架构跳过 NodeSource apt 安装（国内 ARM 镜像不稳定），直接走 Node.js 官方二进制 tarball；Windows ARM64 自动下载 `arm64` 版 MSI。
+
+## ARM 架构特别说明
+
+### Linux ARM64（树莓派 / Orange Pi / AWS Graviton 等）
+
+- **APT 源**: Ubuntu ARM 设备自动使用 `ports.ubuntu.com/ubuntu-ports` 路径（非 x86 的 `/ubuntu/`）
+- **Node.js**: 直接下载官方 `linux-arm64` 二进制包，跳过 NodeSource apt 安装
+- **镜像回退**: 版本发现和下载阶段双向回退（npmmirror ↔ nodejs.org）
+- **经典版树莓派 (armv7l/armhf)**: 同样适用上述策略
+
+### Windows ARM64（Surface Pro X/9/11 等）
+
+- **Node.js**: 自动检测 `PROCESSOR_ARCHITECTURE` 为 `ARM64`，下载 `arm64` 版 MSI
+- **兼容模式**: 对 WoW64 (x86 模拟) 环境同样支持，通过 `PROCESSOR_IDENTIFIER` 辅助检测
 
 ## 卸载
 
@@ -199,7 +220,7 @@ sudo bash remove_claude.sh --dry-run
 
 - **APT 镜像** — 检测 Aliyun 镜像可达性，优先使用国内源
 - **npm 镜像** — 默认使用 `npmmirror.com`
-- **Node.js 下载** — `nodejs.org` 不可达时自动切换到国内镜像
+- **Node.js 下载** — 双向回退，国内镜像不可达时自动切官方源
 
 ```bash
 # 使用 curl
@@ -218,6 +239,7 @@ wget -qO- https://raw.githubusercontent.com/Souldevelop/deploy/master/deploy_cla
 | `deploy.ps1` | Windows PowerShell 部署脚本 |
 | `deploy.conf` | 配置文件示例（Linux / Windows 通用） |
 | `remove_claude.sh` | Linux 卸载脚本 |
+| `README.md` | 本文档 |
 
 ## 许可证
 
