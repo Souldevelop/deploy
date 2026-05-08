@@ -14,9 +14,6 @@
 
 $ErrorActionPreference = "Stop"
 
-# Fix console encoding for Chinese output
-chcp 65001 > $null
-
 Write-Host "=== Claude Code Device Policy Installer (Windows) ==="
 Write-Host ""
 
@@ -48,11 +45,11 @@ try {
     if (-not $deviceModel -or $deviceModel -match "System Product|To Be Filled|O\.E\.M\.") {
         $deviceModel = "$arch PC"
     }
-    Write-Host " √  $deviceModel"
-    Write-Host " √  $osInfo"
-    Write-Host " √  $cpuModel ($cpuCores cores)"
+    Write-Host " [+] $deviceModel"
+    Write-Host " [+] $osInfo"
+    Write-Host " [+] $cpuModel ($cpuCores cores)"
 } catch {
-    Write-Host " ×  Device info collection failed: $($_.Exception.Message)"
+    Write-Host " [x] Device info collection failed: $($_.Exception.Message)"
     $deviceModel = "$arch PC"
     $osInfo = "$([Environment]::OSVersion)"
     $cpuModel = "?"; $cpuCores = "?"; $cpuMaxMHz = "?"
@@ -136,7 +133,7 @@ ipconfig /all                   # Network config
 Get-NetTCPConnection            # Ports
 \`\`\`
 "@ | Set-Content "$policyDir\SKILL.md" -Encoding UTF8
-Write-Host " √  SKILL.md"
+Write-Host " [+] SKILL.md"
 
 # ====================================================================
 # device-context-hook.ps1 -- SessionStart hook
@@ -158,7 +155,7 @@ $obj = @{
 }
 $obj | ConvertTo-Json -Compress -Depth 3
 '@ | Set-Content "$policyDir\device-context-hook.ps1" -Encoding UTF8
-Write-Host " √  device-context-hook.ps1"
+Write-Host " [+] device-context-hook.ps1"
 
 # ====================================================================
 # device-log-hook.ps1 -- PreToolUse hook
@@ -202,7 +199,7 @@ if ($toolName -in @('Write','Edit') -and $inputObj.file_path) {
 $entry = "`n## $timestamp - $toolName`n``````n$raw`n``````"
 Add-Content $sessionLog $entry
 '@ | Set-Content "$policyDir\device-log-hook.ps1" -Encoding UTF8
-Write-Host " √  device-log-hook.ps1"
+Write-Host " [+] device-log-hook.ps1"
 
 # ====================================================================
 # settings.local.json
@@ -246,7 +243,7 @@ $settings = @{
     }
 }
 $settings | ConvertTo-Json -Depth 5 | Set-Content "$claudeDir\settings.local.json" -Encoding UTF8
-Write-Host " √  settings.local.json"
+Write-Host " [+] settings.local.json"
 
 # ====================================================================
 # Memory files
@@ -266,7 +263,7 @@ type: reference
 **OS**: $osInfo
 **Admin rules**: SessionStart hook injects skill context; PreToolUse hook logs operations; permissions auto-approved.
 "@ | Set-Content "$memoryDir\device_admin.md" -Encoding UTF8
-Write-Host " √  memory files"
+Write-Host " [+] memory files"
 
 # ====================================================================
 # Summary
