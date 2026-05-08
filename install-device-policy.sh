@@ -1,10 +1,8 @@
 #!/bin/bash
 # device-policy 一键部署脚本（自包含单文件）
 # 用法: curl -sL <url> | bash
+# 依赖: bash, awk, sed, grep — 任何 Linux 系统都内置
 set -e
-
-TEMPLATE_SETTINGS="ewogICJwZXJtaXNzaW9ucyI6IHsKICAgICJhbGxvdyI6IFsKICAgICAgIkJhc2giLAogICAgICAiUmVhZCIsCiAgICAgICJXcml0ZSIsCiAgICAgICJFZGl0IiwKICAgICAgIldlYlNlYXJjaCIsCiAgICAgICJXZWJGZXRjaCIsCiAgICAgICJHbG9iIiwKICAgICAgIkdyZXAiCiAgICBdLAogICAgImRlbnkiOiBbCiAgICAgICJCYXNoKHJtIC1yZiAvKSIsCiAgICAgICJCYXNoKHJtIC1yZiAvKikiLAogICAgICAiQmFzaCg+IC9kZXYvc2QqKSIsCiAgICAgICJCYXNoKGRkIGlmPS9kZXYvemVybykiCiAgICBdCiAgfSwKICAiaG9va3MiOiB7CiAgICAiU2Vzc2lvblN0YXJ0IjogWwogICAgICB7CiAgICAgICAgImhvb2tzIjogWwogICAgICAgICAgewogICAgICAgICAgICAidHlwZSI6ICJjb21tYW5kIiwKICAgICAgICAgICAgImNvbW1hbmQiOiAiU0tJTExfQ09OVEVOVD0kKGNhdCAkSE9NRS8uY2xhdWRlL2RldmljZS1wb2xpY3kvU0tJTEwubWQgMj4vZGV2L251bGwpOyBqcSAtbiAtYyAtLWFyZyBjdHggXCIkU0tJTExfQ09OVEVOVFwiICd7XCJob29rU3BlY2lmaWNPdXRwdXRcIjoge1wiaG9va0V2ZW50TmFtZVwiOiBcIlNlc3Npb25TdGFydFwiLCBcImFkZGl0aW9uYWxDb250ZXh0XCI6ICRjdHh9fScgMj4vZGV2L251bGwgfHwgZWNobyAne1wic3lzdGVtTWVzc2FnZVwiOlwiRGV2aWNlLXBvbGljeSBza2lsbCBub3QgZm91bmRcIn0nIiwKICAgICAgICAgICAgInRpbWVvdXQiOiA1LAogICAgICAgICAgICAic3RhdHVzTWVzc2FnZSI6ICJMb2FkaW5nIGRldmljZSBwb2xpY3kgY29udGV4dC4uLiIKICAgICAgICAgIH0KICAgICAgICBdCiAgICAgIH0KICAgIF0sCiAgICAiUHJlVG9vbFVzZSI6IFsKICAgICAgewogICAgICAgICJtYXRjaGVyIjogIkJhc2h8V3JpdGV8RWRpdCIsCiAgICAgICAgImhvb2tzIjogWwogICAgICAgICAgewogICAgICAgICAgICAidHlwZSI6ICJjb21tYW5kIiwKICAgICAgICAgICAgImNvbW1hbmQiOiAiY2F0IHwgJEhPTUUvLmNsYXVkZS9kZXZpY2UtcG9saWN5L2RldmljZS1sb2ctaG9vay5zaCAyPi9kZXYvbnVsbCB8fCB0cnVlIiwKICAgICAgICAgICAgInRpbWVvdXQiOiA1LAogICAgICAgICAgICAic3RhdHVzTWVzc2FnZSI6ICIiCiAgICAgICAgICB9CiAgICAgICAgXQogICAgICB9CiAgICBdCiAgfQp9Cg=="
-LOG_HOOK="IyEvYmluL2Jhc2gKIyBEZXZpY2Ugb3BlcmF0aW9uIGxvZ2dpbmcgaG9vayBmb3IgQ2xhdWRlIENvZGUKIyBDYWxsZWQgZnJvbSBQcmVUb29sVXNlIGhvb2tzIHdpdGggSlNPTiBvbiBzdGRpbgojIExvZ3MgZGV2aWNlLW1vZGlmeWluZyBvcGVyYXRpb25zIHRvIH4vLmNsYXVkZS9kZXZpY2UtcG9saWN5L2xvZ3MvCgpJTlBVVD0kKGNhdCkKClRPT0xfTkFNRT0kKGVjaG8gIiRJTlBVVCIgfCBqcSAtciAnLnRvb2xfbmFtZSAvLyBlbXB0eScpClRPT0xfSU5QVVQ9JChlY2hvICIkSU5QVVQiIHwganEgLXIgJy50b29sX2lucHV0IC8vIGVtcHR5JykKU0VTU0lPTl9JRD0kKGVjaG8gIiRJTlBVVCIgfCBqcSAtciAnLnNlc3Npb25faWQgLy8gZW1wdHknKQoKWyAteiAiJFRPT0xfTkFNRSIgXSAmJiBleGl0IDAKClRJTUVTVEFNUD0kKGRhdGUgJyslSDolTTolUycpCkxPR19EQVRFPSQoZGF0ZSAnKyVZJW0lZCcpClNFU1NJT05fTE9HPSIkSE9NRS8uY2xhdWRlL2RldmljZS1wb2xpY3kvbG9ncy8ke0xPR19EQVRFfS5tZCIKCmlmIFsgISAtZiAiJFNFU1NJT05fTE9HIiBdOyB0aGVuCiAgICBlY2hvICIjIFNlc3Npb24gJChkYXRlICcrJVktJW0tJWQgJUg6JU0nKSAtIERldmljZSBPcGVyYXRpb25zIExvZyIgPiAiJFNFU1NJT05fTE9HIgpmaQoKY2FzZSAiJFRPT0xfTkFNRSIgaW4KICAgIEJhc2gpCiAgICAgICAgQ09NTUFORD0kKGVjaG8gIiRJTlBVVCIgfCBqcSAtciAnLnRvb2xfaW5wdXQuY29tbWFuZCAvLyBlbXB0eScpCiAgICAgICAgWyAteiAiJENPTU1BTkQiIF0gJiYgZXhpdCAwCiAgICAgICAgY2FzZSAiJENPTU1BTkQiIGluCiAgICAgICAgICAgIGxzXCAqfGxzfGNhdFwgL3Byb2MqfGNhdFwgL3N5cyp8aGVhZFwgKnx0YWlsXCAqfGVjaG9cICp8Z3JlcFwgKnxmaW5kXCAqfHdoaWNoXCAqfHdob1wgKnx1cHRpbWVcICp8ZnJlZVwgKnxkZlwgKnxwc1wgKnxzc1wgKnxpcFwgYWRkcipcIHxpcFwgcm91dGUqXCB8am91cm5hbGN0bFwgKnxzeXN0ZW1jdGxcIHN0YXR1c1wgKnxzeXN0ZW1jdGxcIGxpc3QtKlwgfGRvY2tlclwgcHNcICp8ZG9ja2VyXCAtLXZlcnNpb24qfGRhdGVcICp8dHJ1ZXxmYWxzZXxwd2RcICp8aWRcICp8dW5hbWVcICp8aG9zdG5hbWVcICp8d2NcICp8c29ydFwgKnxjdXRcICp8aGlzdG9yeVwgKnx0eXBlXCAqfHByaW50ZW52XCAqfGVudlwgKnxsc2Jsa1wgKnxsc2NwdVwgKnxsc3BjaVwgKnxsc3VzYlwgKnx6cmFtY3RsXCAqfHN3YXBvblwgKnxwaXAzXCAqfG5wbVwgKnxkb2NrZXJcIC0tdmVyc2lvbnxweXRob24zXCAtLXZlcnNpb258bm9kZVwgLS12ZXJzaW9ufGdpdFwgc3RhdHVzXCAqfGdpdFwgbG9nXCAqfGdpdFwgZGlmZlwgKnxnaXRcIC0tdmVyc2lvbnxodG9wXCAqfHZuc3RhdFwgKnx0cmFjZXJvdXRlXCAqfHBpbmdcICp8bnNsb29rdXBcICp8ZGlnXCAqfGpxXCAqKQogICAgICAgICAgICAgICAgZXhpdCAwCiAgICAgICAgICAgICAgICA7OwogICAgICAgIGVzYWMKICAgICAgICA7OwogICAgV3JpdGV8RWRpdCkKICAgICAgICBGSUxFX1BBVEg9JChlY2hvICIkSU5QVVQiIHwganEgLXIgJy50b29sX2lucHV0LmZpbGVfcGF0aCAvLyBlbXB0eScpCiAgICAgICAgY2FzZSAiJEZJTEVfUEFUSCIgaW4KICAgICAgICAgICAgKi9kZXZpY2UtcG9saWN5L2xvZ3MvKnwkSE9NRS8uY2xhdWRlL21lbW9yeS8qKQogICAgICAgICAgICAgICAgZXhpdCAwCiAgICAgICAgICAgICAgICA7OwogICAgICAgIGVzYWMKICAgICAgICA7OwogICAgKikKICAgICAgICBleGl0IDAKICAgICAgICA7Owplc2FjCgp7CiAgICBlY2hvICIiCiAgICBlY2hvICIjIyAke1RJTUVTVEFNUH0gLSAke1RPT0xfTkFNRX0iCiAgICBlY2hvICdgYGBqc29uJwogICAgZWNobyAiJElOUFVUIiB8IGpxIC1jICd7dG9vbDogLnRvb2xfbmFtZSwgaW5wdXQ6IC50b29sX2lucHV0fScgMj4vZGV2L251bGwKICAgIGVjaG8gJ2BgYCcKfSA+PiAiJFNFU1NJT05fTE9HIgo="
 
 echo "=== device-policy 部署开始 ==="
 
@@ -95,12 +93,143 @@ ss -tlnp          # Ports
 \`\`\`
 SKILLEOF
 
-# 部署 settings.local.json
-echo "$TEMPLATE_SETTINGS" | base64 -d > "$CLAUDE_DIR/settings.local.json"
+# 部署 device-context-hook.sh — SessionStart 钩子
+# 将 SKILL.md 内容以 JSON 格式注入 Claude Code 会话上下文
+# 不依赖 jq，使用 awk/sed 纯文本处理
+cat > "$CLAUDE_DIR/device-policy/device-context-hook.sh" << 'CTXEOF'
+#!/bin/bash
+# device-context-hook.sh — SessionStart hook for device-policy
+# Reads SKILL.md and outputs hook response JSON
+SKILL_PATH="$HOME/.claude/device-policy/SKILL.md"
+if [ ! -f "$SKILL_PATH" ]; then
+    echo '{"systemMessage":"Device policy skill not found"}'
+    exit 0
+fi
 
-# 部署日志脚本
-echo "$LOG_HOOK" | base64 -d > "$CLAUDE_DIR/device-policy/device-log-hook.sh"
+# Use awk to escape JSON special chars and construct the hook response
+# Escapes: backslash (\) and double-quote (")
+awk '
+BEGIN {
+    printf "{\"hookSpecificOutput\":{\"hookEventName\":\"SessionStart\",\"additionalContext\":\""
+}
+{
+    gsub(/[\\"]/, "\\\\&")
+    printf "%s\\n", $0
+}
+END {
+    print "\"}}"
+}
+' "$SKILL_PATH"
+CTXEOF
+chmod +x "$CLAUDE_DIR/device-policy/device-context-hook.sh"
+
+# 部署 device-log-hook.sh — PreToolUse 钩子
+# 在 Bash/Write/Edit 操作前调用，记录操作日志
+# 不依赖 jq，使用 sed/grep 提取 JSON 字段
+cat > "$CLAUDE_DIR/device-policy/device-log-hook.sh" << 'LOGHOOKEOF'
+#!/bin/bash
+# device-log-hook.sh — PreToolUse hook for device-policy
+# Logs device-modifying operations to ~/.claude/device-policy/logs/
+# Called by Claude Code with tool call JSON on stdin
+INPUT=$(cat)
+[ -z "$INPUT" ] && exit 0
+
+# Extract tool_name from JSON using sed
+TOOL_NAME=$(echo "$INPUT" | sed -n 's/.*"tool_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
+[ -z "$TOOL_NAME" ] && exit 0
+
+TIMESTAMP=$(date '+%H:%M:%S')
+LOG_DATE=$(date '+%Y%m%d')
+SESSION_LOG="$HOME/.claude/device-policy/logs/${LOG_DATE}.md"
+
+[ ! -f "$SESSION_LOG" ] && echo "# Session $(date '+%Y-%m-%d %H:%M') - Device Operations Log" > "$SESSION_LOG"
+
+case "$TOOL_NAME" in
+    Bash)
+        COMMAND=$(echo "$INPUT" | sed -n 's/.*"command"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
+        [ -z "$COMMAND" ] && exit 0
+        # Read-only 命令免记录
+        case "$COMMAND" in
+            ls\ *|ls|cat\ /proc*|cat\ /sys*|head\ *|tail\ *|echo\ *|grep\ *|find\ *|which\ *|who\ *|uptime\ *|free\ *|df\ *|ps\ *|ss\ *|ip\ addr*\ |ip\ route*\ |journalctl\ *|systemctl\ status\ *|systemctl\ list-*\ |docker\ ps\ *|docker\ --version*|date\ *|true|false|pwd\ *|id\ *|uname\ *|hostname\ *|wc\ *|sort\ *|cut\ *|history\ *|type\ *|printenv\ *|env\ *|lsblk\ *|lscpu\ *|lspci\ *|lsusb\ *|zramctl\ *|swapon\ *|pip3\ *|npm\ *|docker\ --version|python3\ --version|node\ --version|git\ status\ *|git\ log\ *|git\ diff\ *|git\ --version|htop\ *|vnstat\ *|traceroute\ *|ping\ *|nslookup\ *|dig\ *|jq\ *)
+                exit 0
+                ;;
+        esac
+        ;;
+    Write|Edit)
+        FILE_PATH=$(echo "$INPUT" | sed -n 's/.*"file_path"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
+        # 日志目录和记忆文件的操作免记录（避免递归）
+        case "$FILE_PATH" in
+            */device-policy/logs/*|$HOME/.claude/memory/*)
+                exit 0
+                ;;
+        esac
+        ;;
+    *)
+        exit 0
+        ;;
+esac
+
+# 记录操作
+{
+    echo ""
+    echo "## ${TIMESTAMP} - ${TOOL_NAME}"
+    echo '```'
+    echo "$INPUT"
+    echo '```'
+} >> "$SESSION_LOG"
+LOGHOOKEOF
 chmod +x "$CLAUDE_DIR/device-policy/device-log-hook.sh"
+
+# 部署 settings.local.json
+cat > "$CLAUDE_DIR/settings.local.json" << 'JSONEOF'
+{
+  "permissions": {
+    "allow": [
+      "Bash",
+      "Read",
+      "Write",
+      "Edit",
+      "WebSearch",
+      "WebFetch",
+      "Glob",
+      "Grep"
+    ],
+    "deny": [
+      "Bash(rm -rf /)",
+      "Bash(rm -rf /*)",
+      "Bash(> /dev/sd*)",
+      "Bash(dd if=/dev/zero)"
+    ]
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOME/.claude/device-policy/device-context-hook.sh",
+            "timeout": 5,
+            "statusMessage": "Loading device policy context..."
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash|Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOME/.claude/device-policy/device-log-hook.sh 2>/dev/null || true",
+            "timeout": 5,
+            "statusMessage": ""
+          }
+        ]
+      }
+    ]
+  }
+}
+JSONEOF
 
 # 部署记忆文件
 cat > "$CLAUDE_DIR/projects/-root/memory/MEMORY.md" << 'MEMEOF'
@@ -122,11 +251,12 @@ DADEOF
 echo ""
 echo "=== 部署完成 ==="
 echo "  $CLAUDE_DIR/device-policy/SKILL.md"
+echo "  $CLAUDE_DIR/device-policy/device-context-hook.sh"
 echo "  $CLAUDE_DIR/device-policy/device-log-hook.sh"
 echo "  $CLAUDE_DIR/device-policy/logs/"
 echo "  $CLAUDE_DIR/settings.local.json"
 echo ""
 echo "新会话自动生效:"
-echo "  1. SessionStart → 自动加载设备档案"
+echo "  1. SessionStart → 自动加载设备档案 (纯 awk, 无 jq 依赖)"
 echo "  2. 权限全部免确认"
-echo "  3. 操作自动记录日志"
+echo "  3. 操作自动记录日志 (纯 sed, 无 jq 依赖)"
