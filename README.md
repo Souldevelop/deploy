@@ -1,4 +1,4 @@
-# Claude Code CLI 一键部署工具 **v2.2.8**
+# Claude Code CLI 一键部署工具 **v2.2.9**
 
 在 Linux (Debian / Ubuntu) 和 Windows 上一键安装 [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code/overview) 的自动化脚本。
 
@@ -91,7 +91,27 @@ sudo bash deploy_claude.sh
 
 ### 方式四：Windows 部署
 
-Windows 下使用 PowerShell 脚本，支持自动提权和管理员安装。
+Windows 提供两种安装方式。
+
+#### 方式四-A：远程一键安装（推荐，无需 Git）
+
+```powershell
+# Gitee（中国大陆推荐，速度快）
+powershell -NoProfile -ExecutionPolicy Bypass -Command "iex ((New-Object Net.WebClient).DownloadString('https://gitee.com/reverseking/deploy/raw/master/install.ps1'))"
+
+# GitHub（全球备用）
+powershell -NoProfile -ExecutionPolicy Bypass -Command "iex ((New-Object Net.WebClient).DownloadString('https://raw.githubusercontent.com/Souldevelop/deploy/master/install.ps1'))"
+
+# 也可指定镜像源
+powershell -NoProfile -ExecutionPolicy Bypass -Command "iex ((New-Object Net.WebClient).DownloadString('...'))" -- -Mirror gitee
+```
+
+该命令会自动：
+- 检测 Gitee/GitHub 镜像可达性，选择最快源
+- 下载 `deploy.ps1` 和 `deploy.conf` 到临时目录
+- 启动安装器（自动请求管理员权限）
+
+#### 方式四-B：本地仓库运行（需 Git）
 
 ```powershell
 # Gitee（中国大陆推荐，速度快）
@@ -119,7 +139,6 @@ powershell -NoProfile -ExecutionPolicy Bypass -File deploy.ps1 -ConfigFile deplo
 - **ARM64 Windows** 自动下载 `arm64` 版 Node.js MSI
 - 支持 `deploy.conf` 配置文件（格式与 Linux 版相同）
 - 额外集成 CC-Switch（AI API 切换工具）自动安装
-- **不支持通过远程管道一键安装**（PowerShell 远程执行策略限制），请先下载到本地再运行
 
 ## 无人值守配置文件
 
@@ -323,6 +342,7 @@ curl -sL https://raw.githubusercontent.com/Souldevelop/deploy/master/install-dev
 | `deploy_claude.sh` | Linux 主部署脚本（bash） |
 | `deploy_claude.bat` | Windows 批处理启动器 |
 | `deploy.ps1` | Windows PowerShell 部署脚本 |
+| `install.ps1` | Windows 远程安装引导脚本（无需 Git） |
 | `deploy.conf` | 配置文件示例（Linux / Windows 通用） |
 | `remove_claude.sh` | Linux 卸载脚本 |
 | `install-device-policy.sh` | 设备管理技能与配置部署脚本 |
