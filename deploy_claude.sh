@@ -60,7 +60,7 @@ USE_CHINA=false
 # 仓库镜像基地址（用于自下载和配置引用）
 # GitHub 为主仓库，Gitee 为中国镜像
 readonly GITHUB_REPO_BASE="https://raw.githubusercontent.com/Souldevelop/deploy/master"
-readonly GITEE_REPO_BASE="https://gitee.com/Souldevelop/deploy/raw/master"
+readonly GITEE_REPO_BASE="https://gitee.com/reverseking/deploy/raw/master"
 
 # 脚本自身的下载地址（用于管道模式自动提权）。
 # 由 detect_repo_mirror() 根据 --mirror 参数或网络探测自动设置。
