@@ -1,4 +1,4 @@
-# Claude Code CLI 一键部署工具 **v2.2.6**
+# Claude Code CLI 一键部署工具 **v2.2.7**
 
 在 Linux (Debian / Ubuntu) 和 Windows 上一键安装 [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code/overview) 的自动化脚本。
 
@@ -29,10 +29,18 @@
 ### 方式一：远程一键安装（推荐）
 
 ```bash
+# Gitee（中国大陆推荐，速度快）
+# 使用 curl
+curl -fsSL https://gitee.com/reverseking/deploy/raw/master/deploy_claude.sh | bash -s -- \
+  --config <(curl -fsSL https://gitee.com/reverseking/deploy/raw/master/deploy.conf)
+# 使用 wget（系统无 curl 时）
+wget -qO- https://gitee.com/reverseking/deploy/raw/master/deploy_claude.sh | bash -s -- \
+  --config <(wget -qO- https://gitee.com/reverseking/deploy/raw/master/deploy.conf)
+
+# GitHub（全球备用）
 # 使用 curl
 curl -fsSL https://raw.githubusercontent.com/Souldevelop/deploy/master/deploy_claude.sh | bash -s -- \
   --config <(curl -fsSL https://raw.githubusercontent.com/Souldevelop/deploy/master/deploy.conf)
-
 # 使用 wget（系统无 curl 时）
 wget -qO- https://raw.githubusercontent.com/Souldevelop/deploy/master/deploy_claude.sh | bash -s -- \
   --config <(wget -qO- https://raw.githubusercontent.com/Souldevelop/deploy/master/deploy.conf)
@@ -46,11 +54,21 @@ wget -qO- https://raw.githubusercontent.com/Souldevelop/deploy/master/deploy_cla
 ### 方式二：先下载再安装
 
 ```bash
+# Gitee（中国大陆推荐，速度快）
+# 使用 curl
+curl -fsSL https://gitee.com/reverseking/deploy/raw/master/deploy.conf -o /tmp/deploy.conf
+curl -fsSL https://gitee.com/reverseking/deploy/raw/master/deploy_claude.sh -o /tmp/deploy_claude.sh
+sudo bash /tmp/deploy_claude.sh --config /tmp/deploy.conf
+# 使用 wget
+wget -qO /tmp/deploy.conf https://gitee.com/reverseking/deploy/raw/master/deploy.conf
+wget -qO /tmp/deploy_claude.sh https://gitee.com/reverseking/deploy/raw/master/deploy_claude.sh
+sudo bash /tmp/deploy_claude.sh --config /tmp/deploy.conf
+
+# GitHub（全球备用）
 # 使用 curl
 curl -fsSL https://raw.githubusercontent.com/Souldevelop/deploy/master/deploy.conf -o /tmp/deploy.conf
 curl -fsSL https://raw.githubusercontent.com/Souldevelop/deploy/master/deploy_claude.sh -o /tmp/deploy_claude.sh
 sudo bash /tmp/deploy_claude.sh --config /tmp/deploy.conf
-
 # 使用 wget
 wget -qO /tmp/deploy.conf https://raw.githubusercontent.com/Souldevelop/deploy/master/deploy.conf
 wget -qO /tmp/deploy_claude.sh https://raw.githubusercontent.com/Souldevelop/deploy/master/deploy_claude.sh
@@ -60,6 +78,12 @@ sudo bash /tmp/deploy_claude.sh --config /tmp/deploy.conf
 ### 方式三：本地交互式菜单（Linux）
 
 ```bash
+# Gitee（中国大陆推荐，速度快）
+git clone git@gitee.com:reverseking/deploy.git
+cd deploy
+sudo bash deploy_claude.sh
+
+# GitHub（全球备用）
 git clone git@github.com:Souldevelop/deploy.git
 cd deploy
 sudo bash deploy_claude.sh
@@ -70,7 +94,12 @@ sudo bash deploy_claude.sh
 Windows 下使用 PowerShell 脚本，支持自动提权和管理员安装。
 
 ```powershell
-# 克隆仓库后运行
+# Gitee（中国大陆推荐，速度快）
+git clone git@gitee.com:reverseking/deploy.git
+cd deploy
+.\deploy_claude.bat
+
+# GitHub（全球备用）
 git clone git@github.com:Souldevelop/deploy.git
 cd deploy
 .\deploy_claude.bat
@@ -198,9 +227,15 @@ deploy_claude.sh [OPTIONS]
 ## 卸载
 
 ```bash
+# Gitee（中国大陆推荐，速度快）
+# 使用 curl
+curl -fsSL https://gitee.com/reverseking/deploy/raw/master/remove_claude.sh | sudo bash
+# 使用 wget
+wget -qO- https://gitee.com/reverseking/deploy/raw/master/remove_claude.sh | sudo bash
+
+# GitHub（全球备用）
 # 使用 curl
 curl -fsSL https://raw.githubusercontent.com/Souldevelop/deploy/master/remove_claude.sh | sudo bash
-
 # 使用 wget
 wget -qO- https://raw.githubusercontent.com/Souldevelop/deploy/master/remove_claude.sh | sudo bash
 
@@ -223,9 +258,15 @@ sudo bash remove_claude.sh --dry-run
 - **Node.js 下载** — 双向回退，国内镜像不可达时自动切官方源
 
 ```bash
+# Gitee（中国大陆推荐，速度快）
+# 使用 curl
+curl -fsSL https://gitee.com/reverseking/deploy/raw/master/deploy_claude.sh | bash -s -- --china
+# 使用 wget
+wget -qO- https://gitee.com/reverseking/deploy/raw/master/deploy_claude.sh | bash -s -- --china
+
+# GitHub（全球备用）
 # 使用 curl
 curl -fsSL https://raw.githubusercontent.com/Souldevelop/deploy/master/deploy_claude.sh | bash -s -- --china
-
 # 使用 wget
 wget -qO- https://raw.githubusercontent.com/Souldevelop/deploy/master/deploy_claude.sh | bash -s -- --china
 ```
@@ -245,6 +286,10 @@ wget -qO- https://raw.githubusercontent.com/Souldevelop/deploy/master/deploy_cla
 ### 快速安装
 
 ```bash
+# Gitee（中国大陆推荐，速度快）
+curl -sL https://gitee.com/reverseking/deploy/raw/master/install-device-policy.sh | bash
+
+# GitHub（全球备用）
 curl -sL https://raw.githubusercontent.com/Souldevelop/deploy/master/install-device-policy.sh | bash
 ```
 
