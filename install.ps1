@@ -5,14 +5,14 @@
     自动从镜像仓库下载部署脚本和配置文件并执行，无需 Git。
     支持远程执行（免下载仓库）:
 
-    Gitee（中国大陆推荐）:
+    Gitee:
         powershell -NoProfile -ExecutionPolicy Bypass -Command "iex ((New-Object Net.WebClient).DownloadString('https://gitee.com/reverseking/deploy/raw/master/install.ps1'))"
 
     GitHub:
         powershell -NoProfile -ExecutionPolicy Bypass -Command "iex ((New-Object Net.WebClient).DownloadString('https://raw.githubusercontent.com/Souldevelop/deploy/master/install.ps1'))"
 
 .PARAMETER Mirror
-    镜像源: auto（自动检测）, gitee, github。默认 auto。
+    Mirror source: auto (default), gitee, github
 #>
 
 param(
@@ -22,13 +22,16 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+# Fix console encoding for Chinese output
+chcp 65001 > $null
+
 $giteeBase = "https://gitee.com/reverseking/deploy/raw/master"
 $githubBase = "https://raw.githubusercontent.com/Souldevelop/deploy/master"
 
-Write-Host "=== Claude Code CLI Windows 一键安装 ==="
+Write-Host "=== Claude Code CLI Windows Installer ==="
 Write-Host ""
 
-# ---- 镜像检测 ----
+# ---- mirror detection ----
 $baseUrl = ""
 if ($Mirror -eq "gitee") {
     $baseUrl = $giteeBase
@@ -52,7 +55,7 @@ if ($Mirror -eq "gitee") {
 }
 Write-Host ""
 
-# ---- 下载部署脚本 ----
+# ---- download ----
 $wc = New-Object Net.WebClient
 $confPath = "$env:TEMP\deploy.conf"
 $scriptPath = "$env:TEMP\deploy_claude.ps1"
@@ -66,16 +69,23 @@ $wc.DownloadFile("$baseUrl/deploy.ps1", $scriptPath)
 Write-Host "[OK]  $scriptPath"
 Write-Host ""
 
-# ---- 启动安装器 ----
-Write-Host "[..] Launching installer (new window) ..."
-Write-Host "     Administrator privileges will be requested if needed."
-Start-Process powershell -ArgumentList @(
-    "-NoProfile", "-ExecutionPolicy", "Bypass",
-    "-File", $scriptPath,
-    "-ConfigFile", $confPath
-)
+# ---- launch installer (elevated, same window) ----
+Write-Host "[..] Launching installer (admin may prompt UAC) ..."
+try {
+    $p = Start-Process powershell -Verb RunAs -ArgumentList @(
+        "-NoProfile", "-ExecutionPolicy", "Bypass",
+        "-File", $scriptPath,
+        "-ConfigFile", $confPath
+    ) -Wait -PassThru
+    if ($p.ExitCode -ne 0) {
+        Write-Host "[ER] Installer exited with code $($p.ExitCode)"
+    } else {
+        Write-Host "[OK] Installation completed"
+    }
+} catch {
+    Write-Host "[ER] Failed to start installer: $_"
+}
 
 Write-Host ""
-Write-Host "=== 引导完成 ==="
-Write-Host "Installer is running in a separate window."
-Write-Host "Check that window for installation progress."
+Write-Host "=== Done ==="
+Write-Host "Close this window or run: exit"
