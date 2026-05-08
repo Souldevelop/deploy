@@ -1744,7 +1744,7 @@ detect_repo_mirror() {
     local mode="${1:-auto}"
 
     # BOOTSTRAP_SELF_URL 优先级最高
-    if [ -n "$BOOTSTRAP_SELF_URL" ]; then
+    if [ -n "${BOOTSTRAP_SELF_URL:-}" ]; then
         SELF_SOURCE="$BOOTSTRAP_SELF_URL"
         log_info "Using BOOTSTRAP_SELF_URL: $(echo "$SELF_SOURCE" | sed 's|https://||')"
         return
