@@ -1,4 +1,4 @@
-# Claude Code CLI 一键部署工具 **v2.2.11**
+# Claude Code CLI 一键部署工具 **v2.2.12**
 
 在 Linux (Debian / Ubuntu) 和 Windows 上一键安装 [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code/overview) 的自动化脚本。
 
@@ -299,7 +299,7 @@ wget -qO- https://raw.githubusercontent.com/Souldevelop/deploy/master/deploy_cla
 - **操作日志** — Write/Edit 及写操作 Bash 命令自动记录到 `~/.claude/device-policy/logs/`
 - **零外部依赖** — 仅需 bash/awk/sed/grep，所有 Linux 系统内置
 
-### 快速安装
+### 快速安装（Linux）
 
 ```bash
 # Gitee（中国大陆推荐，速度快）
@@ -308,6 +308,18 @@ curl -sL https://gitee.com/reverseking/deploy/raw/master/install-device-policy.s
 # GitHub（全球备用）
 curl -sL https://raw.githubusercontent.com/Souldevelop/deploy/master/install-device-policy.sh | bash
 ```
+
+### 快速安装（Windows 10/11）
+
+```powershell
+# Gitee（中国大陆推荐，速度快）
+powershell -NoProfile -ExecutionPolicy Bypass -Command "iex ((New-Object Net.WebClient).DownloadString('https://gitee.com/reverseking/deploy/raw/master/install-device-policy.ps1'))"
+
+# GitHub（全球备用）
+powershell -NoProfile -ExecutionPolicy Bypass -Command "iex ((New-Object Net.WebClient).DownloadString('https://raw.githubusercontent.com/Souldevelop/deploy/master/install-device-policy.ps1'))"
+```
+
+该命令会自动采集 Windows 设备信息，部署 PowerShell 版 SessionStart / PreToolUse hook 脚本（纯 PowerShell，无需 bash 环境）。
 
 ### 生效验证
 
@@ -323,9 +335,11 @@ curl -sL https://raw.githubusercontent.com/Souldevelop/deploy/master/install-dev
 ~/.claude/
 ├── settings.local.json              # 权限与 hooks 配置
 ├── device-policy/
-│   ├── SKILL.md                     # 设备管理技能定义
-│   ├── device-context-hook.sh       # SessionStart hook — 注入技能上下文
-│   ├── device-log-hook.sh           # PreToolUse hook — 操作日志记录
+│   ├── SKILL.md                     # 设备管理技能定义（Linux/Windows 通用）
+│   ├── device-context-hook.sh       # SessionStart hook — Linux（bash）
+│   ├── device-context-hook.ps1      # SessionStart hook — Windows（PowerShell）
+│   ├── device-log-hook.sh           # PreToolUse hook — Linux（bash）
+│   ├── device-log-hook.ps1          # PreToolUse hook — Windows（PowerShell）
 │   └── logs/                        # 操作日志目录
 └── projects/-root/memory/
     ├── MEMORY.md
@@ -342,7 +356,8 @@ curl -sL https://raw.githubusercontent.com/Souldevelop/deploy/master/install-dev
 | `install.ps1` | Windows 远程安装引导脚本（无需 Git） |
 | `deploy.conf` | 配置文件示例（Linux / Windows 通用） |
 | `remove_claude.sh` | Linux 卸载脚本 |
-| `install-device-policy.sh` | 设备管理技能与配置部署脚本 |
+| `install-device-policy.sh` | Linux 设备管理技能与配置部署脚本（bash） |
+| `install-device-policy.ps1` | Windows 设备管理技能与配置部署脚本（PowerShell） |
 | `vendor/` | 依赖的第三方安装包（如 CC-Switch MSI） |
 | `README.md` | 本文档 |
 
