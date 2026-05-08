@@ -1,0 +1,19 @@
+name: Sync to Gitee
+
+on:
+  push:
+    branches: [master]
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Sync to Gitee
+        run: |
+          git remote add gitee https://reverseking:${{ secrets.GITEE_TOKEN }}@gitee.com/reverseking/deploy.git
+          git push -f gitee master
+          git push gitee --tags
