@@ -14,6 +14,9 @@
 
 $ErrorActionPreference = "Stop"
 
+# Fix console encoding for Chinese output
+chcp 65001 > $null
+
 Write-Host "=== Claude Code Device Policy Installer (Windows) ==="
 Write-Host ""
 
@@ -27,10 +30,11 @@ $arch = $env:PROCESSOR_ARCHITECTURE
 try {
     $osInfo = (Get-CimInstance Win32_OperatingSystem).Caption
     $kernel = (Get-CimInstance Win32_OperatingSystem).Version
-    $cpuInfo = Get-CimInstance Win32_Processor
-    $cpuModel = $cpuInfo.Name
-    $cpuCores = $cpuInfo.NumberOfLogicalCores
-    $cpuMaxMHz = $cpuInfo.MaxClockSpeed
+    # Win32_Processor may return multiple instances on hybrid CPU (P-core+E-core)
+    $cpuList = Get-CimInstance Win32_Processor
+    $cpuModel = $cpuList | Select-Object -First 1 -ExpandProperty Name
+    $cpuCores = ($cpuList | Measure-Object -Property NumberOfLogicalProcessors -Sum).Sum
+    $cpuMaxMHz = $cpuList | Select-Object -First 1 -ExpandProperty MaxClockSpeed
     $memBytes = (Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory
     $memTotal = [math]::Round($memBytes / 1GB, 1)
     $disk = Get-CimInstance Win32_LogicalDisk -Filter "DriveType=3" | Where-Object DeviceID -eq "C:"
