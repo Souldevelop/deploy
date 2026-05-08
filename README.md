@@ -230,6 +230,47 @@ curl -fsSL https://raw.githubusercontent.com/Souldevelop/deploy/master/deploy_cl
 wget -qO- https://raw.githubusercontent.com/Souldevelop/deploy/master/deploy_claude.sh | bash -s -- --china
 ```
 
+## 设备管理部署（Device Policy）
+
+在已安装 Claude Code 的设备上，通过 `install-device-policy.sh` 一键注入**设备管理技能**，让 AI 会话自动识别设备角色、获得免确认操作权限，并记录操作日志。
+
+### 功能特性
+
+- **设备认知** — 自动检测设备型号、OS、CPU、内存等硬件信息，注入 AI 会话上下文
+- **权限免确认** — Read/Write/Edit/Bash/Glob/Grep/WebSearch/WebFetch 工具自动允许，减少交互确认
+- **危险命令拦截** — `rm -rf /`、`dd if=/dev/zero` 等高危操作自动拒绝
+- **操作日志** — Write/Edit 及写操作 Bash 命令自动记录到 `~/.claude/device-policy/logs/`
+- **零外部依赖** — 仅需 bash/awk/sed/grep，所有 Linux 系统内置
+
+### 快速安装
+
+```bash
+curl -sL https://raw.githubusercontent.com/Souldevelop/deploy/master/install-device-policy.sh | bash
+```
+
+### 生效验证
+
+新开 Claude Code 会话后，直接提问：
+
+> 请描述这台设备的型号、操作系统、CPU、内存
+
+若 AI 能直接报出具体设备信息，说明部署成功。
+
+### 部署文件结构
+
+```
+~/.claude/
+├── settings.local.json              # 权限与 hooks 配置
+├── device-policy/
+│   ├── SKILL.md                     # 设备管理技能定义
+│   ├── device-context-hook.sh       # SessionStart hook — 注入技能上下文
+│   ├── device-log-hook.sh           # PreToolUse hook — 操作日志记录
+│   └── logs/                        # 操作日志目录
+└── projects/-root/memory/
+    ├── MEMORY.md
+    └── device_admin.md              # 设备管理记忆文件
+```
+
 ## 文件说明
 
 | 文件 | 说明 |
@@ -239,6 +280,7 @@ wget -qO- https://raw.githubusercontent.com/Souldevelop/deploy/master/deploy_cla
 | `deploy.ps1` | Windows PowerShell 部署脚本 |
 | `deploy.conf` | 配置文件示例（Linux / Windows 通用） |
 | `remove_claude.sh` | Linux 卸载脚本 |
+| `install-device-policy.sh` | 设备管理技能与配置部署脚本 |
 | `README.md` | 本文档 |
 
 ## 许可证
