@@ -57,9 +57,15 @@ USE_CHINA=false
 # Constants
 # ---------------------------------------------------------------------------
 
+# 仓库镜像基地址（用于自下载和配置引用）
+# GitHub 为主仓库，Gitee 为中国镜像
+readonly GITHUB_REPO_BASE="https://raw.githubusercontent.com/Souldevelop/deploy/master"
+readonly GITEE_REPO_BASE="https://gitee.com/Souldevelop/deploy/raw/master"
+
 # 脚本自身的下载地址（用于管道模式自动提权）。
-# 可通过环境变量 BOOTSTRAP_SELF_URL 覆盖。
-readonly SELF_SOURCE="${BOOTSTRAP_SELF_URL:-https://raw.githubusercontent.com/Souldevelop/deploy/master/deploy_claude.sh}"
+# 由 detect_repo_mirror() 根据 --mirror 参数或网络探测自动设置。
+# 也可通过环境变量 BOOTSTRAP_SELF_URL 强制覆盖。
+SELF_SOURCE=""
 
 # 脚本版本号（更新时请修改此值）
 readonly SCRIPT_VERSION="2.2.5"
@@ -1731,6 +1737,47 @@ run_quick_mode() {
 }
 
 # ---------------------------------------------------------------------------
+# Repo mirror detection
+# ---------------------------------------------------------------------------
+
+detect_repo_mirror() {
+    local mode="${1:-auto}"
+
+    # BOOTSTRAP_SELF_URL 优先级最高
+    if [ -n "$BOOTSTRAP_SELF_URL" ]; then
+        SELF_SOURCE="$BOOTSTRAP_SELF_URL"
+        log_info "Using BOOTSTRAP_SELF_URL: $(echo "$SELF_SOURCE" | sed 's|https://||')"
+        return
+    fi
+
+    case "$mode" in
+        github)
+            SELF_SOURCE="${GITHUB_REPO_BASE}/deploy_claude.sh"
+            log_info "Using GitHub mirror (--mirror github)"
+            ;;
+        gitee)
+            SELF_SOURCE="${GITEE_REPO_BASE}/deploy_claude.sh"
+            log_info "Using Gitee mirror (--mirror gitee)"
+            ;;
+        auto|*)
+            # 先探测 GitHub（2s 超时，国内通常 1s 内可知是否可达）
+            if curl -sfI --connect-timeout 2 "${GITHUB_REPO_BASE}/deploy_claude.sh" >/dev/null 2>&1; then
+                SELF_SOURCE="${GITHUB_REPO_BASE}/deploy_claude.sh"
+                log_info "GitHub reachable, auto-selected GitHub mirror"
+            # 回退到 Gitee
+            elif curl -sfI --connect-timeout 2 "${GITEE_REPO_BASE}/deploy_claude.sh" >/dev/null 2>&1; then
+                SELF_SOURCE="${GITEE_REPO_BASE}/deploy_claude.sh"
+                log_info "GitHub unreachable, auto-selected Gitee mirror"
+            # 都不可达，默认 GitHub
+            else
+                SELF_SOURCE="${GITHUB_REPO_BASE}/deploy_claude.sh"
+                log_warn "Neither mirror reachable, defaulting to GitHub"
+            fi
+            ;;
+    esac
+}
+
+# ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
 
@@ -1739,6 +1786,7 @@ main() {
 
     local quick_mode=false
     local config_file=""
+    local repo_mirror="auto"
     local orig_args=("$@")
 
     while [ $# -gt 0 ]; do
@@ -1760,6 +1808,7 @@ main() {
                 fi
                 exit 0
                 ;;
+            --mirror)      repo_mirror="$2"; shift 2 ;;
             --help|-h)
                 echo "Usage: $0 [OPTIONS]"
                 echo
@@ -1767,6 +1816,8 @@ main() {
                 echo "  --china, -c           Prefer China mirrors"
                 echo "  --config FILE         Unattended deployment via config file"
                 echo "                        See: --help-config for format"
+                echo "  --mirror MODE         Repo mirror: github, gitee, auto (default)"
+                echo "                        auto probes GitHub then Gitee"
                 echo "  --install, -i         Copy to /usr/local/bin for PATH use"
                 echo "  --help, -h            Show this help"
                 echo "  --help-config         Show config file format"
@@ -1774,6 +1825,7 @@ main() {
                 echo "Remote (curl | bash):"
                 echo "  curl -fsSL <URL> | sudo bash"
                 echo "  curl -fsSL <URL> | sudo bash -s -- --quick --china"
+                echo "  curl -fsSL <URL> | sudo bash -s -- --mirror gitee"
                 exit 0
                 ;;
             --help-config)
@@ -1824,6 +1876,9 @@ CFGEOF
             *) echo "Unknown: $1"; exit 1 ;;
         esac
     done
+
+    # 镜像检测（必须在 require_root 之前，因为提权需使用 SELF_SOURCE）
+    detect_repo_mirror "$repo_mirror"
 
     require_root "${orig_args[@]}"
     detect_os
