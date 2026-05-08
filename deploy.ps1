@@ -2,7 +2,7 @@ param(
     [string]$ConfigFile = ""
 )
 
-$ScriptVersion = "2.2.4"
+$ScriptVersion = "2.2.5"
 
 # Force TLS 1.2 for WebClient downloading (important for npmmirror CDN)
 try { [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 } catch { }
@@ -506,7 +506,7 @@ if (-not $ConfigFile) {
 
 Clear-Host
 Write-Host ("=" * 50)
-Write-Host "   Claude Code CLI + CC-Switch  v2.2.4  2026-05-08"
+Write-Host "   Claude Code CLI + CC-Switch  v2.2.5  2026-05-08"
 Write-Host ""
 Write-Host "   Developer: ReverseKing   QQ: 441673604"
 Write-Host ("=" * 50)
