@@ -101,9 +101,6 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command "iex ((New-Object Net.Web
 
 # GitHub（全球备用）
 powershell -NoProfile -ExecutionPolicy Bypass -Command "iex ((New-Object Net.WebClient).DownloadString('https://raw.githubusercontent.com/Souldevelop/deploy/master/install.ps1'))"
-
-# 也可指定镜像源
-powershell -NoProfile -ExecutionPolicy Bypass -Command "iex ((New-Object Net.WebClient).DownloadString('...'))" -- -Mirror gitee
 ```
 
 该命令会自动：

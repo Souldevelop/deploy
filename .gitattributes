@@ -1,0 +1,12 @@
+# PowerShell scripts — Windows line endings
+*.ps1    text eol=crlf
+*.psm1   text eol=crlf
+
+# Shell scripts — Unix line endings
+*.sh     text eol=lf
+
+# Batch files — Windows line endings
+*.bat    text eol=crlf
+
+# Binary files — no conversion
+*.msi    binary
