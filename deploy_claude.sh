@@ -68,7 +68,7 @@ readonly GITEE_REPO_BASE="https://gitee.com/reverseking/deploy/raw/master"
 SELF_SOURCE=""
 
 # 脚本版本号（更新时请修改此值）
-readonly SCRIPT_VERSION="2.2.7"
+readonly SCRIPT_VERSION="2.2.8"
 
 # ---------------------------------------------------------------------------
 # APT mirror presets

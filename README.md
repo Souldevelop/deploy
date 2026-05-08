@@ -1,4 +1,4 @@
-# Claude Code CLI 一键部署工具 **v2.2.7**
+# Claude Code CLI 一键部署工具 **v2.2.8**
 
 在 Linux (Debian / Ubuntu) 和 Windows 上一键安装 [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code/overview) 的自动化脚本。
 
