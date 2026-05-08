@@ -328,24 +328,8 @@ function Install-CCSwitch {
         return $true
     }
 
-    Write-Step "Checking latest release from GitHub..."
-    $downloadUrl = $null
-    try {
-        $release = Invoke-RestMethod -Uri "https://api.github.com/repos/farion1231/cc-switch/releases/latest" -UseBasicParsing
-        $version = $release.tag_name
-        $msiAsset = $release.assets | Where-Object { $_.name -match 'Windows\.msi$' }
-        if ($msiAsset) {
-            $downloadUrl = $msiAsset.browser_download_url
-            Write-OK "Latest version: $version"
-        }
-    } catch {
-        Write-Warn "GitHub API unreachable"
-    }
-
-    if (-not $downloadUrl) {
-        Write-Step "Falling back to known URL v3.14.1..."
-        $downloadUrl = "https://github.com/farion1231/cc-switch/releases/download/v3.14.1/CC-Switch-v3.14.1-Windows.msi"
-    }
+    $downloadUrl = if ($config.ContainsKey('CC_SWITCH_URL')) { $config['CC_SWITCH_URL'] } else { "https://raw.githubusercontent.com/Souldevelop/deploy/master/vendor/CC-Switch-Windows.msi" }
+    Write-Step "Downloading CC-Switch from deploy repo..."
 
     $tmpFile = "$env:TEMP\cc-switch-windows.msi"
     try {

@@ -281,6 +281,7 @@ curl -sL https://raw.githubusercontent.com/Souldevelop/deploy/master/install-dev
 | `deploy.conf` | 配置文件示例（Linux / Windows 通用） |
 | `remove_claude.sh` | Linux 卸载脚本 |
 | `install-device-policy.sh` | 设备管理技能与配置部署脚本 |
+| `vendor/` | 依赖的第三方安装包（如 CC-Switch MSI） |
 | `README.md` | 本文档 |
 
 ## 许可证
