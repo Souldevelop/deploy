@@ -83,7 +83,7 @@ New-Item -ItemType Directory -Path $memoryDir -Force | Out-Null
 # ====================================================================
 # SKILL.md
 # ====================================================================
-@"
+$skillContent = @"
 ---
 name: device-policy
 description: |
@@ -130,13 +130,14 @@ Get-Process                     # Process listing
 Get-CimInstance Win32_LogicalDisk  # Disk info
 ipconfig /all                   # Network config
 Get-NetTCPConnection            # Ports
-"@ | Set-Content "$policyDir\SKILL.md" -Encoding UTF8
+"@
+[System.IO.File]::WriteAllText("$policyDir\SKILL.md", $skillContent)
 Write-Host " [+] SKILL.md"
 
 # ====================================================================
 # device-context-hook.ps1 -- SessionStart hook
 # ====================================================================
-@'
+$contextHookContent = @'
 #!/usr/bin/env pwsh
 # device-context-hook.ps1 -- SessionStart hook for device-policy
 $skillPath = Join-Path $env:USERPROFILE ".claude" "device-policy" "SKILL.md"
@@ -152,13 +153,14 @@ $obj = @{
     }
 }
 $obj | ConvertTo-Json -Compress -Depth 3
-'@ | Set-Content "$policyDir\device-context-hook.ps1" -Encoding UTF8
+'@
+[System.IO.File]::WriteAllText("$policyDir\device-context-hook.ps1", $contextHookContent)
 Write-Host " [+] device-context-hook.ps1"
 
 # ====================================================================
 # device-log-hook.ps1 -- PreToolUse hook
 # ====================================================================
-@'
+$logHookContent = @'
 #!/usr/bin/env pwsh
 # device-log-hook.ps1 -- PreToolUse hook for device-policy
 $raw = [Console]::In.ReadToEnd()
@@ -196,7 +198,8 @@ if ($toolName -in @('Write','Edit') -and $inputObj.file_path) {
 
 $entry = "`n## $timestamp - $toolName`n``````n$raw`n``````"
 Add-Content $sessionLog $entry
-'@ | Set-Content "$policyDir\device-log-hook.ps1" -Encoding UTF8
+'@
+[System.IO.File]::WriteAllText("$policyDir\device-log-hook.ps1", $logHookContent)
 Write-Host " [+] device-log-hook.ps1"
 
 # ====================================================================
@@ -240,17 +243,19 @@ $settings = @{
         )
     }
 }
-$settings | ConvertTo-Json -Depth 5 | Set-Content "$claudeDir\settings.local.json" -Encoding UTF8
+$settingsJson = $settings | ConvertTo-Json -Depth 5
+[System.IO.File]::WriteAllText("$claudeDir\settings.local.json", $settingsJson)
 Write-Host " [+] settings.local.json"
 
 # ====================================================================
 # Memory files
 # ====================================================================
-@"
+$memoryIndexContent = @"
 - [Device Admin](device_admin.md) -- Device specs, admin responsibilities, and management rules
-"@ | Set-Content "$memoryDir\MEMORY.md" -Encoding UTF8
+"@
+[System.IO.File]::WriteAllText("$memoryDir\MEMORY.md", $memoryIndexContent)
 
-@"
+$deviceAdminContent = @"
 ---
 name: Device Administration
 description: Device admin info -- loaded via SessionStart hook and settings.local.json
@@ -260,7 +265,8 @@ type: reference
 **Device**: $deviceModel ($hostname)
 **OS**: $osInfo
 **Admin rules**: SessionStart hook injects skill context; PreToolUse hook logs operations; permissions auto-approved.
-"@ | Set-Content "$memoryDir\device_admin.md" -Encoding UTF8
+"@
+[System.IO.File]::WriteAllText("$memoryDir\device_admin.md", $deviceAdminContent)
 Write-Host " [+] memory files"
 
 # ====================================================================
