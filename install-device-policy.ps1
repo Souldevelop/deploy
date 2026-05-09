@@ -140,12 +140,12 @@ Write-Host " [+] SKILL.md"
 $contextHookContent = @'
 #!/usr/bin/env pwsh
 # device-context-hook.ps1 -- SessionStart hook for device-policy
-$skillPath = Join-Path $env:USERPROFILE ".claude" "device-policy" "SKILL.md"
+$skillPath = "$env:USERPROFILE\.claude\device-policy\SKILL.md"
 if (-not (Test-Path $skillPath)) {
     Write-Output '{"systemMessage":"Device policy skill not found"}'
     exit 0
 }
-$content = Get-Content $skillPath -Raw
+$content = [System.IO.File]::ReadAllText($skillPath)
 $obj = @{
     hookSpecificOutput = @{
         hookEventName = "SessionStart"
@@ -171,7 +171,7 @@ if (-not $inputObj -or -not $inputObj.tool_name) { exit 0 }
 $toolName = $inputObj.tool_name
 $timestamp = Get-Date -Format "HH:mm:ss"
 $logDate = Get-Date -Format "yyyyMMdd"
-$sessionLog = Join-Path $env:USERPROFILE ".claude" "device-policy" "logs" "$logDate.md"
+$sessionLog = "$env:USERPROFILE\.claude\device-policy\logs\$logDate.md"
 
 if (-not (Test-Path $sessionLog)) {
     "# Session $(Get-Date -Format 'yyyy-MM-dd HH:mm') - Device Operations Log" | Set-Content $sessionLog
@@ -213,7 +213,6 @@ $logCmd = "powershell -NoProfile -ExecutionPolicy Bypass -File `"$logHookPath`" 
 $settings = @{
     permissions = @{
         allow = @("Bash", "Read", "Write", "Edit", "WebSearch", "WebFetch", "Glob", "Grep")
-        deny  = @("Bash(rm -rf /)", "Bash(rm -rf /*)", "Bash(> /dev/sd*)", "Bash(dd if=/dev/zero)")
     }
     hooks = @{
         SessionStart = @(
