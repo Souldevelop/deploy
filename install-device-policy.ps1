@@ -303,6 +303,92 @@ type: reference
 Write-Host " [+] memory files"
 
 # ====================================================================
+# CC-Switch integration (if installed)
+# ====================================================================
+$ccSwitchDb = "$env:USERPROFILE\.cc-switch\cc-switch.db"
+if (Test-Path $ccSwitchDb) {
+    Write-Host " - CC-Switch detected, integrating device policy..."
+
+    $pyScript = @'
+import json, sqlite3, os, sys
+
+up = os.environ["USERPROFILE"]
+ctx_cmd = f'powershell -NoProfile -ExecutionPolicy Bypass -File "{up}\\.claude\\device-policy\\device-context-hook.ps1"'
+log_cmd = f'powershell -NoProfile -ExecutionPolicy Bypass -File "{up}\\.claude\\device-policy\\device-log-hook.ps1" 2$null'
+
+db_path = os.path.join(up, ".cc-switch", "cc-switch.db")
+conn = sqlite3.connect(db_path)
+c = conn.cursor()
+c.execute("SELECT id, settings_config FROM providers WHERE is_current = 1 AND app_type = 'claude'")
+row = c.fetchone()
+if not row:
+    conn.close()
+    sys.exit(0)
+
+pid, cfg_str = row
+cfg = json.loads(cfg_str)
+
+hooks = cfg.setdefault("hooks", {})
+
+ss_list = hooks.setdefault("SessionStart", [])
+ctx_hook = {
+    "hooks": [{
+        "type": "command",
+        "command": ctx_cmd,
+        "timeout": 5,
+        "statusMessage": "Loading device policy context..."
+    }]
+}
+dup = False
+for h in ss_list:
+    for hook in h.get("hooks", []):
+        if "device-context-hook" in hook.get("command", ""):
+            dup = True
+            break
+if not dup:
+    ss_list.append(ctx_hook)
+
+if "PreToolUse" not in hooks:
+    hooks["PreToolUse"] = [{
+        "matcher": "Bash|Write|Edit",
+        "hooks": [{
+            "type": "command",
+            "command": log_cmd,
+            "timeout": 5,
+            "statusMessage": ""
+        }]
+    }]
+
+perms = cfg.setdefault("permissions", {})
+allow_list = perms.setdefault("allow", [])
+existing_names = set(a for a in allow_list if "(" not in a)
+for p in ["Bash", "Read", "Write", "Edit", "WebSearch", "WebFetch", "Glob", "Grep"]:
+    if p not in existing_names:
+        allow_list.append(p)
+        existing_names.add(p)
+
+c.execute("UPDATE providers SET settings_config = ? WHERE id = ?", (json.dumps(cfg, separators=(",", ":")), pid))
+conn.commit()
+conn.close()
+print("OK")
+'@
+
+    $pyFile = "$env:TEMP\_cc_policy.py"
+    [System.IO.File]::WriteAllText($pyFile, $pyScript)
+    try {
+        $result = python "$pyFile" 2>&1
+        if ($LASTEXITCODE -eq 0 -and $result -match "OK") {
+            Write-Host " [+] CC-Switch provider config updated"
+        } else {
+            Write-Warn "CC-Switch integration failed: $result"
+        }
+    } catch {
+        Write-Warn "CC-Switch integration skipped (Python required)"
+    }
+    if (Test-Path $pyFile) { Remove-Item $pyFile -Force }
+}
+
+# ====================================================================
 # Summary
 # ====================================================================
 Write-Host ""
@@ -313,6 +399,7 @@ Write-Host "  $policyDir\device-context-hook.ps1"
 Write-Host "  $policyDir\device-log-hook.ps1"
 Write-Host "  $policyDir\logs\"
 Write-Host "  $claudeDir\settings.local.json"
+if (Test-Path $ccSwitchDb) { Write-Host "  CC-Switch provider config updated" }
 Write-Host ""
 Write-Host "New session auto-load:"
 Write-Host "  1. SessionStart -> auto-load device profile"
