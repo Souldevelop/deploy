@@ -126,12 +126,10 @@ $adminDuties
 
 ## Quick Reference
 
-\`\`\`powershell
 Get-Process                     # Process listing
 Get-CimInstance Win32_LogicalDisk  # Disk info
 ipconfig /all                   # Network config
 Get-NetTCPConnection            # Ports
-\`\`\`
 "@ | Set-Content "$policyDir\SKILL.md" -Encoding UTF8
 Write-Host " [+] SKILL.md"
 
