@@ -203,48 +203,82 @@ Add-Content $sessionLog $entry
 Write-Host " [+] device-log-hook.ps1"
 
 # ====================================================================
-# settings.local.json
+# settings.local.json (permissions only)
 # ====================================================================
 $ctxHookPath = Join-Path $policyDir "device-context-hook.ps1"
 $logHookPath = Join-Path $policyDir "device-log-hook.ps1"
 $ctxCmd = "powershell -NoProfile -ExecutionPolicy Bypass -File `"$ctxHookPath`""
 $logCmd = "powershell -NoProfile -ExecutionPolicy Bypass -File `"$logHookPath`" 2`$null"
 
-$settings = @{
+$localSettings = @{
     permissions = @{
         allow = @("Bash", "Read", "Write", "Edit", "WebSearch", "WebFetch", "Glob", "Grep")
     }
-    hooks = @{
-        SessionStart = @(
-            @{
-                hooks = @(
-                    @{
-                        type    = "command"
-                        command = $ctxCmd
-                        timeout = 5
-                        statusMessage = "Loading device policy context..."
-                    }
-                )
-            }
-        )
-        PreToolUse = @(
-            @{
-                matcher = "Bash|Write|Edit"
-                hooks = @(
-                    @{
-                        type    = "command"
-                        command = $logCmd
-                        timeout = 5
-                        statusMessage = ""
-                    }
-                )
-            }
-        )
-    }
 }
-$settingsJson = $settings | ConvertTo-Json -Depth 5
-[System.IO.File]::WriteAllText("$claudeDir\settings.local.json", $settingsJson)
-Write-Host " [+] settings.local.json"
+$localSettingsJson = $localSettings | ConvertTo-Json -Depth 5
+[System.IO.File]::WriteAllText("$claudeDir\settings.local.json", $localSettingsJson)
+Write-Host " [+] settings.local.json (permissions)"
+
+# ====================================================================
+# Merge hooks into settings.json (immune to project-level overrides)
+# ====================================================================
+$settingsFile = "$claudeDir\settings.json"
+$settingsJson = $null
+if (Test-Path $settingsFile) {
+    $settingsJson = Get-Content $settingsFile -Raw | ConvertFrom-Json
+} else {
+    $settingsJson = New-Object PSObject
+}
+
+# Ensure hooks section exists
+if (-not $settingsJson.hooks) {
+    $settingsJson | Add-Member -NotePropertyName hooks -NotePropertyValue @{} -Force
+}
+
+$deviceHooks = @{
+    SessionStart = @(
+        @{
+            hooks = @(
+                @{
+                    type    = "command"
+                    command = $ctxCmd
+                    timeout = 5
+                    statusMessage = "Loading device policy context..."
+                }
+            )
+        }
+    )
+    PreToolUse = @(
+        @{
+            matcher = "Bash|Write|Edit"
+            hooks = @(
+                @{
+                    type    = "command"
+                    command = $logCmd
+                    timeout = 5
+                    statusMessage = ""
+                }
+            )
+        }
+    )
+}
+
+# Merge device hooks into existing hooks (add, don't replace)
+if ($settingsJson.hooks.SessionStart) {
+    $settingsJson.hooks.SessionStart = @($settingsJson.hooks.SessionStart) + $deviceHooks.SessionStart
+} else {
+    $settingsJson.hooks | Add-Member -NotePropertyName SessionStart -NotePropertyValue $deviceHooks.SessionStart -Force
+}
+
+if ($settingsJson.hooks.PreToolUse) {
+    $settingsJson.hooks.PreToolUse = @($settingsJson.hooks.PreToolUse) + $deviceHooks.PreToolUse
+} else {
+    $settingsJson.hooks | Add-Member -NotePropertyName PreToolUse -NotePropertyValue $deviceHooks.PreToolUse -Force
+}
+
+$mergedJson = $settingsJson | ConvertTo-Json -Depth 10
+[System.IO.File]::WriteAllText($settingsFile, $mergedJson)
+Write-Host " [+] Merged hooks into settings.json"
 
 # ====================================================================
 # Memory files
