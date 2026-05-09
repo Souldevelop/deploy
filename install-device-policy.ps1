@@ -203,12 +203,6 @@ Add-Content $sessionLog $entry
 Write-Host " [+] device-log-hook.ps1"
 
 # ====================================================================
-# Policy display name (change for different policies: 程序代码, 硬件设计, etc.)
-# ====================================================================
-$policyDisplayName = "Device Management"
-$ctxStatusMsg = "### This session has loaded [$policyDisplayName] policy rules ###"
-
-# ====================================================================
 # settings.local.json (permissions only)
 # ====================================================================
 $ctxHookPath = Join-Path $policyDir "device-context-hook.ps1"
@@ -249,7 +243,6 @@ $deviceHooks = @{
                     type    = "command"
                     command = $ctxCmd
                     timeout = 5
-                    statusMessage = $ctxStatusMsg
                 }
             )
         }
@@ -341,8 +334,7 @@ ctx_hook = {
     "hooks": [{
         "type": "command",
         "command": ctx_cmd,
-        "timeout": 5,
-        "statusMessage": "### This session has loaded [__POLICY_NAME__] policy rules ###"
+        "timeout": 5
     }]
 }
 dup = False
@@ -380,7 +372,7 @@ print("OK")
 '@
 
     $pyFile = "$env:TEMP\_cc_policy.py"
-    [System.IO.File]::WriteAllText($pyFile, ($pyScript -replace '__POLICY_NAME__', $policyDisplayName))
+    [System.IO.File]::WriteAllText($pyFile, $pyScript)
     try {
         $result = python "$pyFile" 2>&1
         if ($LASTEXITCODE -eq 0 -and $result -match "OK") {
