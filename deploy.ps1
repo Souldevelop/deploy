@@ -2,7 +2,7 @@ param(
     [string]$ConfigFile = ""
 )
 
-$ScriptVersion = "2.2.13"
+$ScriptVersion = "2.2.14"
 
 # Force TLS 1.2 for WebClient downloading (important for npmmirror CDN)
 try { [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 } catch { }

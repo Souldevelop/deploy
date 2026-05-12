@@ -68,7 +68,7 @@ readonly GITEE_REPO_BASE="https://gitee.com/reverseking/deploy/raw/master"
 SELF_SOURCE=""
 
 # 脚本版本号（更新时请修改此值）
-readonly SCRIPT_VERSION="2.2.13"
+readonly SCRIPT_VERSION="2.2.14"
 
 # ---------------------------------------------------------------------------
 # APT mirror presets
@@ -882,9 +882,13 @@ install_nodejs() {
         log_warn "Node.js ${current_ver} is too old (need 18+), upgrading"
     fi
 
-    # ARM 架构：NodeSource 国内镜像不稳定，跳过 apt 直接走二进制 tarball
-    if [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "armv7l" ] || [ "$ARCH" = "armhf" ]; then
-        log_info "ARM (${ARCH_DISPLAY}) — skipping NodeSource, using binary tarball ..."
+    # ARM 架构 / 中国网络环境：NodeSource 镜像不稳定，跳过 apt 直接走二进制 tarball
+    if [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "armv7l" ] || [ "$ARCH" = "armhf" ] || [ "$USE_CHINA" = true ]; then
+        if [ "$USE_CHINA" = true ] && [ "$ARCH" != "aarch64" ] && [ "$ARCH" != "armv7l" ] && [ "$ARCH" != "armhf" ]; then
+            log_info "China network — skipping slow NodeSource, using binary tarball ..."
+        else
+            log_info "ARM (${ARCH_DISPLAY}) — skipping NodeSource, using binary tarball ..."
+        fi
 
     # ---- Method 1: NodeSource (convenient, integrates with apt) ----
     elif command -v curl &>/dev/null; then
@@ -893,16 +897,13 @@ install_nodejs() {
         if curl -fL --connect-timeout 10 --max-time 60 --progress-bar \
             "$ns_url" | bash -; then
 
-            log_info "Updating apt cache ..."
-            apt-get update -qq 2>/dev/null || true
-
             log_info "Installing Node.js ${node_major}.x via apt ..."
             # apt may install the distro default version (too old)
             # on systems where NodeSource doesn't provide ${node_major}.x.
             # The version check below catches that and falls back to binary tarball.
 
-            if DEBIAN_FRONTEND=noninteractive apt-get install -y -qq nodejs 2>/dev/null || \
-               DEBIAN_FRONTEND=noninteractive apt-get install -y nodejs; then
+            if DEBIAN_FRONTEND=noninteractive timeout 120 apt-get install -y --no-install-recommends -qq nodejs 2>/dev/null || \
+               DEBIAN_FRONTEND=noninteractive timeout 120 apt-get install -y nodejs; then
                 # Verify installed version meets requirements
                 local installed
                 installed="$(node --version 2>/dev/null || echo "unknown")"
@@ -976,28 +977,31 @@ install_nodejs_binary() {
     esac
 
     local version=""
-    local ver_list
-    ver_list="$(curl -fsL --connect-timeout 10 --max-time 30 "${base_url}/index.json" 2>/dev/null || true)"
-    if [ -n "$ver_list" ]; then
-        version="$(echo "$ver_list" | grep -oP "\"v${major}\.[0-9]+\.[0-9]+\"" | tr -d '"' | sort -V | tail -1 || true)"
-    fi
+    local fallback_vers=""
+    case "$major" in
+        22) fallback_vers="22.14.0 22.13.1" ;;
+        20) fallback_vers="20.18.0 20.17.0" ;;
+        *)  log_error "Cannot determine latest Node.js ${major}.x version"; return 1 ;;
+    esac
 
+    # Fast path: probe known versions with HEAD request (seconds, vs index.json ~30s)
+    for try_ver in $fallback_vers; do
+        local test_url="${base_url}/v${try_ver}/node-v${try_ver}-linux-${arch}.tar.gz"
+        if curl -sfLI --connect-timeout 5 --max-time 10 -o /dev/null "${test_url}" 2>/dev/null; then
+            version="v${try_ver}"
+            log_dim "  Found ${version}"
+            break
+        fi
+    done
+
+    # Fallback: fetch index.json for version discovery
     if [ -z "$version" ]; then
-        log_warn "Version discovery failed, trying known ${major}.x releases ..."
-        local fallback_vers=""
-        case "$major" in
-            22) fallback_vers="22.14.0 22.13.1 22.12.0" ;;
-            20) fallback_vers="20.18.0 20.17.0" ;;
-            *)  log_error "Cannot determine latest Node.js ${major}.x version"; return 1 ;;
-        esac
-        for try_ver in $fallback_vers; do
-            local test_url="${base_url}/v${try_ver}/node-v${try_ver}-linux-${arch}.tar.gz"
-            if curl -sfL --connect-timeout 5 --max-time 15 -o /dev/null "${test_url}" 2>/dev/null; then
-                version="v${try_ver}"
-                log_dim "  Found ${version}"
-                break
-            fi
-        done
+        log_info "Known version unavailable, trying version discovery via index.json ..."
+        local ver_list
+        ver_list="$(curl -fsL --connect-timeout 10 --max-time 20 "${base_url}/index.json" 2>/dev/null || true)"
+        if [ -n "$ver_list" ]; then
+            version="$(echo "$ver_list" | grep -oP "\"v${major}\.[0-9]+\.[0-9]+\"" | tr -d '"' | sort -V | tail -1 || true)"
+        fi
     fi
 
     # Retry with the alternative mirror when primary fails
@@ -1009,19 +1013,21 @@ install_nodejs_binary() {
         esac
         log_warn "Primary mirror unreachable, trying $(echo "$alt_url" | sed 's|https://||') ..."
         base_url="$alt_url"
-        ver_list="$(curl -fsL --connect-timeout 10 --max-time 30 "${base_url}/index.json" 2>/dev/null || true)"
-        if [ -n "$ver_list" ]; then
-            version="$(echo "$ver_list" | grep -oP "\"v${major}\.[0-9]+\.[0-9]+\"" | tr -d '"' | sort -V | tail -1 || true)"
-        fi
-        if [ -z "$version" ] && [ -n "${fallback_vers:-}" ]; then
-            for try_ver in $fallback_vers; do
-                try_url="${base_url}/v${try_ver}/node-v${try_ver}-linux-${arch}.tar.gz"
-                if curl -sfL --connect-timeout 5 --max-time 15 -o /dev/null "${try_url}" 2>/dev/null; then
-                    version="v${try_ver}"
-                    log_dim "  Found ${version} (alternative mirror)"
-                    break
-                fi
-            done
+        for try_ver in $fallback_vers; do
+            local test_url="${base_url}/v${try_ver}/node-v${try_ver}-linux-${arch}.tar.gz"
+            if curl -sfLI --connect-timeout 5 --max-time 10 -o /dev/null "${test_url}" 2>/dev/null; then
+                version="v${try_ver}"
+                log_dim "  Found ${version} (alternative mirror)"
+                break
+            fi
+        done
+        # Last resort: index.json on alternative mirror
+        if [ -z "$version" ]; then
+            local ver_list
+            ver_list="$(curl -fsL --connect-timeout 10 --max-time 20 "${base_url}/index.json" 2>/dev/null || true)"
+            if [ -n "$ver_list" ]; then
+                version="$(echo "$ver_list" | grep -oP "\"v${major}\.[0-9]+\.[0-9]+\"" | tr -d '"' | sort -V | tail -1 || true)"
+            fi
         fi
     fi
 
