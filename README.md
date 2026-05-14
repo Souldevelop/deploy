@@ -292,19 +292,27 @@ wget -qO- https://raw.githubusercontent.com/Souldevelop/deploy/master/deploy_cla
 
 ## Alpine Linux 特别说明
 
-Alpine Linux 默认使用 `ash`（BusyBox）而非 `bash`，首次使用前需要先安装 bash：
+Alpine Linux 默认没有 bash，脚本已在顶部内置 **POSIX 兼容自引导逻辑**。一键安装命令可以直接使用 `sh` 接收管道，脚本会自动安装 bash 并继续执行。
 
 ```bash
-# 安装 bash（Alpine 需要先启用 community 源）
-sed -i 's/^#\(.*community\)/\1/' /etc/apk/repositories
-apk update
-apk add bash
+# 远程安装（推荐——脚本会自动安装 bash）
+# Gitee（中国大陆推荐，速度快）
+# 注：Alpine 不支持进程替换 <()，需先下载配置到临时文件
+wget -qO /tmp/deploy.conf https://gitee.com/reverseking/deploy/raw/master/deploy.conf
+wget -qO- https://gitee.com/reverseking/deploy/raw/master/deploy_claude.sh | sh -s -- --config /tmp/deploy.conf
+
+# GitHub（全球备用）
+wget -qO /tmp/deploy.conf https://raw.githubusercontent.com/Souldevelop/deploy/master/deploy.conf
+wget -qO- https://raw.githubusercontent.com/Souldevelop/deploy/master/deploy_claude.sh | sh -s -- --config /tmp/deploy.conf
 ```
 
-之后即可正常使用一键部署脚本：
+也可先手动安装 bash，然后使用标准 `| bash` 命令（支持进程替换）：
 
 ```bash
-# 远程安装
+# 安装 bash
+apk add bash
+
+# 之后即可使用标准一键命令（支持进程替换）
 wget -qO- https://gitee.com/reverseking/deploy/raw/master/deploy_claude.sh | bash -s -- \
   --config <(wget -qO- https://gitee.com/reverseking/deploy/raw/master/deploy.conf)
 ```

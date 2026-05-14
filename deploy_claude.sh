@@ -20,6 +20,42 @@
 #
 # Licensed under MIT.
 
+# ---------------------------------------------------------------------------
+# POSIX bootstrap — ensures bash is available (works under sh/ash on Alpine).
+# This section uses only POSIX sh syntax until exec bash re-invokes below.
+# ---------------------------------------------------------------------------
+
+if [ -z "${BASH_VERSION:-}" ]; then
+    # Running under POSIX sh (e.g. Alpine ash) — need bash
+    if ! command -v bash >/dev/null 2>&1; then
+        if command -v apk >/dev/null 2>&1 && grep -qi alpine /etc/os-release 2>/dev/null; then
+            echo "Alpine: installing bash ..." >&2
+            sed -i 's/^#\(.*community\)/\1/' /etc/apk/repositories 2>/dev/null || true
+            apk update 2>/dev/null || true
+            apk add bash >/dev/null 2>&1 || { apk add bash || true; }
+        fi
+    fi
+    if command -v bash >/dev/null 2>&1; then
+        # Running from a local file: re-exec directly
+        if [ -f "$0" ] && [ -r "$0" ]; then
+            exec bash "$0" "$@"
+        fi
+        # Pipe mode: download to temp file and exec bash on it
+        for _bs_url in \
+            "https://gitee.com/reverseking/deploy/raw/master/deploy_claude.sh" \
+            "https://raw.githubusercontent.com/Souldevelop/deploy/master/deploy_claude.sh"; do
+            if wget -qO /tmp/.deploy_claude.sh "$_bs_url" 2>/dev/null || \
+               curl -fsSL -o /tmp/.deploy_claude.sh "$_bs_url" 2>/dev/null; then
+                exec bash /tmp/.deploy_claude.sh "$@"
+            fi
+        done
+        echo "bash installed. Re-run with: wget -qO- <URL> | bash" >&2
+        exit 1
+    fi
+    echo "Error: bash is required to run this script" >&2
+    exit 1
+fi
+
 set -euo pipefail
 
 # Self-repair: strip Windows CRLF from the script file if present.
