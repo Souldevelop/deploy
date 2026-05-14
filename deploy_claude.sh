@@ -1332,9 +1332,6 @@ _write_json_fallback() {
     [ -n "$url" ] && printf '%s\n    "ANTHROPIC_BASE_URL": "%s"' "$sep" "$url" >> "$file" && sep=","
     local m="${model:-claude-sonnet-4-6-20250224}"
     printf '%s\n    "ANTHROPIC_MODEL": "%s"' "$sep" "$m" >> "$file"
-    for _f in HAIKU SONNET OPUS REASONING; do
-        printf '\n    "ANTHROPIC_DEFAULT_%s_MODEL": "%s"' "$_f" "$m" >> "$file"
-    done
     printf '\n  }\n}\n' >> "$file"
     chmod 644 "$file"
 }
@@ -1440,10 +1437,6 @@ env_cfg = existing.get('env', {})
 env_cfg['ANTHROPIC_AUTH_TOKEN'] = '${api_key}'
 env_cfg['ANTHROPIC_BASE_URL'] = '${base_url}'
 env_cfg['ANTHROPIC_MODEL'] = '${model_name:-claude-sonnet-4-6-20250224}'
-env_cfg['ANTHROPIC_DEFAULT_HAIKU_MODEL'] = '${model_name:-claude-sonnet-4-6-20250224}'
-env_cfg['ANTHROPIC_DEFAULT_SONNET_MODEL'] = '${model_name:-claude-sonnet-4-6-20250224}'
-env_cfg['ANTHROPIC_DEFAULT_OPUS_MODEL'] = '${model_name:-claude-sonnet-4-6-20250224}'
-env_cfg['ANTHROPIC_REASONING_MODEL'] = '${model_name:-claude-sonnet-4-6-20250224}'
 existing['env'] = env_cfg
 with open(cfg_file, 'w') as f:
     json.dump(existing, f, indent=2, ensure_ascii=False)
@@ -1611,11 +1604,7 @@ reconfigure_claude() {
     "env": {
         "ANTHROPIC_AUTH_TOKEN": "${curr_key}",
         "ANTHROPIC_BASE_URL": "${curr_url}",
-        "ANTHROPIC_MODEL": "${curr_model:-claude-sonnet-4-6-20250224}",
-        "ANTHROPIC_DEFAULT_HAIKU_MODEL": "${curr_model:-claude-sonnet-4-6-20250224}",
-        "ANTHROPIC_DEFAULT_SONNET_MODEL": "${curr_model:-claude-sonnet-4-6-20250224}",
-        "ANTHROPIC_DEFAULT_OPUS_MODEL": "${curr_model:-claude-sonnet-4-6-20250224}",
-        "ANTHROPIC_REASONING_MODEL": "${curr_model:-claude-sonnet-4-6-20250224}"
+        "ANTHROPIC_MODEL": "${curr_model:-claude-sonnet-4-6-20250224}"
     }
 }
 EOF
