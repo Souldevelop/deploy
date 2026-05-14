@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# deploy_claude.sh — One-click Claude Code CLI deployment for Debian/Ubuntu
+# deploy_claude.sh — One-click Claude Code CLI deployment for Debian/Ubuntu/Alpine
 #
 # Remote usage (host on any web server):
 #   curl -fsSL https://your.host/deploy_claude.sh | sudo bash
@@ -16,6 +16,7 @@
 # Supports:
 #   Debian  11 (bullseye) / 12 (bookworm) / 13 (trixie)
 #   Ubuntu  18.04 (bionic) ~ 26.x
+#   Alpine  3.18 ~ 3.x                 (apk package manager)
 #
 # Licensed under MIT.
 
@@ -68,7 +69,7 @@ readonly GITEE_REPO_BASE="https://gitee.com/reverseking/deploy/raw/master"
 SELF_SOURCE=""
 
 # 脚本版本号（更新时请修改此值）
-readonly SCRIPT_VERSION="2.2.14"
+readonly SCRIPT_VERSION="2.3.0"
 
 # ---------------------------------------------------------------------------
 # APT mirror presets
@@ -359,6 +360,29 @@ read_config_file() {
 }
 
 # ---------------------------------------------------------------------------
+# Alpine helpers (community repo must be enabled for nodejs)
+# ---------------------------------------------------------------------------
+
+enable_alpine_community_repo() {
+    local repo_file="/etc/apk/repositories"
+    if [ ! -f "$repo_file" ]; then
+        log_error "Alpine repository file not found: ${repo_file}"
+        exit 1
+    fi
+    # Check if community repo is already enabled
+    if grep -q '^http.*community' "$repo_file" 2>/dev/null; then
+        log_dim "  Alpine community repo already enabled"
+        return 0
+    fi
+    log_info "Enabling Alpine community repository ..."
+    sed -i 's/^#\(.*community\)/\1/' "$repo_file" 2>/dev/null || true
+    apk update 2>/dev/null || log_warn "apk update failed — check network"
+    if grep -q '^http.*community' "$repo_file" 2>/dev/null; then
+        log_ok "Alpine community repo enabled"
+    fi
+}
+
+# ---------------------------------------------------------------------------
 # OS detection
 # ---------------------------------------------------------------------------
 
@@ -426,29 +450,37 @@ detect_os() {
                     *)  CODENAME="" ;;
                 esac
             fi
+            # Ubuntu ARM 须用 ubuntu-ports 路径
+            if [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "armv7l" ] || [ "$ARCH" = "armhf" ]; then
+                APT_REPO_PATH="ubuntu-ports"
+            else
+                APT_REPO_PATH="$DISTRO_ID"
+            fi
             ;;
         ubuntu)
             CODENAME="$(grep -oP 'VERSION_CODENAME=\K.*' /etc/os-release 2>/dev/null || true)"
+            if [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "armv7l" ] || [ "$ARCH" = "armhf" ]; then
+                APT_REPO_PATH="ubuntu-ports"
+            else
+                APT_REPO_PATH="$DISTRO_ID"
+            fi
+            ;;
+        alpine)
+            CODENAME="$VERSION_ID"  # e.g. "3.21"
+            enable_alpine_community_repo
             ;;
         *)
-            log_error "Unsupported distribution: ${DISTRO_ID} (only debian/ubuntu)"
+            log_error "Unsupported distribution: ${DISTRO_ID} (only debian/ubuntu/alpine)"
             exit 1
             ;;
     esac
 
     if [ -z "$CODENAME" ]; then
-        log_error "Could not detect version codename"
+        log_error "Could not detect version"
         exit 1
     fi
 
-    # Ubuntu ARM 须用 ubuntu-ports 路径（/ubuntu/ 仅含 x86 架构包）
-    if [ "$DISTRO_ID" = "ubuntu" ] && { [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "armv7l" ] || [ "$ARCH" = "armhf" ]; }; then
-        APT_REPO_PATH="ubuntu-ports"
-    else
-        APT_REPO_PATH="$DISTRO_ID"
-    fi
-
-    log_ok "${NAME} ${VERSION_ID} (${CODENAME}) / ${ARCH_DISPLAY}"
+    log_ok "${NAME} ${VERSION_ID} / ${ARCH_DISPLAY}"
 }
 
 # ---------------------------------------------------------------------------
@@ -468,6 +500,12 @@ check_version() {
         ubuntu)
             if [ "$major" -lt 18 ] 2>/dev/null; then
                 log_warn "Ubuntu ${VERSION_ID} is untested (minimum: 18.04)"
+                confirm_yes "Continue?" "Y" || exit 0
+            fi
+            ;;
+        alpine)
+            if [ "$major" -lt 3 ] 2>/dev/null; then
+                log_warn "Alpine ${VERSION_ID} is untested (minimum: 3.18)"
                 confirm_yes "Continue?" "Y" || exit 0
             fi
             ;;
@@ -807,6 +845,29 @@ select_npm_mirror_interactive() {
 install_system_deps() {
     log_step "Installing system dependencies ..."
 
+    if [ "$DISTRO_ID" = "alpine" ]; then
+        local pkgs=(curl wget ca-certificates git)
+        local install_list=()
+        for pkg in "${pkgs[@]}"; do
+            if ! apk info -e "$pkg" &>/dev/null 2>&1; then
+                install_list+=("$pkg")
+            fi
+        done
+        if [ ${#install_list[@]} -eq 0 ]; then
+            log_ok "All system dependencies already present"
+            return 0
+        fi
+        log_info "Installing: ${install_list[*]}"
+        run_with_spinner "安装系统依赖" apk add "${install_list[@]}" || {
+            apk add "${install_list[@]}" || {
+                log_error "Failed to install system dependencies"
+                return 1
+            }
+        }
+        log_ok "System dependencies installed"
+        return 0
+    fi
+
     # Clean up leftover apt backup files from previous runs
     rm -f /etc/apt/sources.list.d/*.bak.* /etc/apt/sources.list.bak.* 2>/dev/null || true
 
@@ -865,6 +926,38 @@ select_nodejs_major() {
 
 install_nodejs() {
     log_step "Installing Node.js ..."
+
+    # ---- Alpine: use apk (binary tarballs are glibc, don't work on musl) ----
+    if [ "$DISTRO_ID" = "alpine" ]; then
+        if command -v node &>/dev/null; then
+            local cv
+            cv="$(node --version 2>/dev/null || true)"
+            local cmj
+            cmj="$(echo "$cv" | sed 's/v//' | cut -d. -f1)"
+            if [ "$cmj" -ge 18 ] 2>/dev/null; then
+                log_ok "Node.js ${cv} already installed, skipping"
+                if command -v npm &>/dev/null; then
+                    log_dim "  npm $(npm --version)"
+                fi
+                return 0
+            fi
+            log_warn "Node.js ${cv} is too old (need 18+), upgrading"
+        fi
+        log_info "Installing Node.js via apk ..."
+        run_with_spinner "安装 Node.js (apk)" apk add nodejs npm || {
+            apk add nodejs npm || {
+                log_error "Node.js installation via apk failed"
+                return 1
+            }
+        }
+        local installed
+        installed="$(node --version 2>/dev/null || echo "unknown")"
+        log_ok "Node.js ${installed} installed (apk)"
+        if command -v npm &>/dev/null; then
+            log_dim "  npm $(npm --version)"
+        fi
+        return 0
+    fi
 
     local node_major
     node_major="$(select_nodejs_major)"
@@ -1517,15 +1610,24 @@ print_summary() {
     echo "        Deployment Complete"
     echo "============================================"
     echo
-    echo "  System:   ${NAME:-} ${VERSION_ID} (${CODENAME}) / ${ARCH_DISPLAY}"
+    local os_label
+    case "$DISTRO_ID" in
+        alpine) os_label="Alpine Linux ${VERSION_ID}" ;;
+        *)      os_label="${NAME:-} ${VERSION_ID} (${CODENAME})" ;;
+    esac
+    echo "  System:   ${os_label} / ${ARCH_DISPLAY}"
     echo "  Duration: ${total_min}m ${total_sec}s"
     echo
     command -v node   &>/dev/null && echo "  Node.js: $(node --version)"   || true
     command -v npm    &>/dev/null && echo "  npm:     $(npm --version)"    || true
     command -v claude &>/dev/null && echo "  Claude:  $(claude --version 2>/dev/null || echo 'installed')" || true
     echo
-    [ -n "$APT_MIRROR" ] && echo "  APT mirror:  ${APT_MIRROR}"
-    [ -n "$NPM_MIRROR" ] && echo "  npm mirror:  ${NPM_MIRROR}"
+    if [ "$DISTRO_ID" = "alpine" ]; then
+        [ -n "$NPM_MIRROR" ] && echo "  npm mirror:  ${NPM_MIRROR}"
+    else
+        [ -n "$APT_MIRROR" ] && echo "  APT mirror:  ${APT_MIRROR}"
+        [ -n "$NPM_MIRROR" ] && echo "  npm mirror:  ${NPM_MIRROR}"
+    fi
     local env_dir; env_dir="$(user_home)/.claude"
     echo "  Claude config: ${env_dir}"
     if [ -f "${env_dir}/settings.json" ]; then
@@ -1543,17 +1645,20 @@ print_summary() {
 # Main menu
 # ---------------------------------------------------------------------------
 
-clear_screen() { clear || true; }
-
 show_menu() {
+    local os_label
+    case "$DISTRO_ID" in
+        alpine) os_label="Alpine Linux ${VERSION_ID}" ;;
+        *)      os_label="${NAME:-} ${VERSION_ID} (${CODENAME})" ;;
+    esac
     clear_screen
     cat << EOF
 ============================================
  Claude Code CLI — Bootstrap Installer
- Debian / Ubuntu
+ Debian / Ubuntu / Alpine
 ============================================
 
-  System: ${NAME:-} ${VERSION_ID} (${CODENAME}) ${ARCH_DISPLAY}
+  System: ${os_label} ${ARCH_DISPLAY}
 
   Choose deployment mode:
 
@@ -1563,9 +1668,9 @@ show_menu() {
     ${BD}2${RS})  Step-by-step custom deploy
          Pick which steps to run
 
-    ${BD}3${RS})  APT mirror only
+    ${BD}3${RS})  Package mirror only (APT/apk)
     ${BD}4${RS})  npm mirror only
-    ${BD}5${RS})  Node.js only (via NodeSource)
+    ${BD}5${RS})  Node.js only
     ${BD}6${RS})  Claude Code CLI only
     ${BD}7${RS})  Reconfigure Claude Code (API key / Base URL / model)
 
@@ -1600,13 +1705,17 @@ run_full_deploy() {
         USE_CHINA=true
     fi
 
-    select_apt_mirror_interactive
+    if [ "$DISTRO_ID" != "alpine" ]; then
+        select_apt_mirror_interactive
+    fi
     select_npm_mirror_interactive
 
     echo
     install_system_deps
-    echo
-    apply_apt_mirror "$APT_MIRROR"
+    if [ "$DISTRO_ID" != "alpine" ]; then
+        echo
+        apply_apt_mirror "$APT_MIRROR"
+    fi
     echo
     install_nodejs
     echo
@@ -1619,63 +1728,96 @@ run_full_deploy() {
 }
 
 run_custom_deploy() {
-    declare -A step_labels=(
-        [1]="APT mirror"
-        [2]="npm mirror"
-        [3]="System dependencies (curl/git/unzip)"
-        [4]="Node.js via NodeSource"
-        [5]="Claude Code CLI"
-    )
-
-    local steps=()
-    for i in 1 2 3 4 5; do
-        if confirm_yes "Run: ${step_labels[$i]}?" "Y"; then
-            steps+=("$i")
+    if [ "$DISTRO_ID" = "alpine" ]; then
+        declare -A step_labels=(
+            [1]="npm mirror"
+            [2]="System dependencies (curl/git)"
+            [3]="Node.js + npm"
+            [4]="Claude Code CLI"
+        )
+        local steps=()
+        for i in 1 2 3 4; do
+            if confirm_yes "Run: ${step_labels[$i]}?" "Y"; then
+                steps+=("$i")
+            fi
+        done
+        if [ ${#steps[@]} -eq 0 ]; then
+            log_info "No steps selected, exiting"
+            exit 0
         fi
-    done
-
-    if [ ${#steps[@]} -eq 0 ]; then
-        log_info "No steps selected, exiting"
-        exit 0
+        for s in "${steps[@]}"; do log_dim "  - ${step_labels[$s]}"; done
+        for s in "${steps[@]}"; do
+            case "$s" in
+                1) select_npm_mirror_interactive; echo ;;
+                2) install_system_deps; echo ;;
+                3) install_nodejs; echo ;;
+                4)
+                    [ -n "$NPM_MIRROR" ] && configure_npm_mirror
+                    install_claude_code
+                    configure_claude_code
+                    echo
+                    ;;
+            esac
+        done
+    else
+        declare -A step_labels=(
+            [1]="APT mirror"
+            [2]="npm mirror"
+            [3]="System dependencies (curl/git/unzip)"
+            [4]="Node.js via NodeSource"
+            [5]="Claude Code CLI"
+        )
+        local steps=()
+        for i in 1 2 3 4 5; do
+            if confirm_yes "Run: ${step_labels[$i]}?" "Y"; then
+                steps+=("$i")
+            fi
+        done
+        if [ ${#steps[@]} -eq 0 ]; then
+            log_info "No steps selected, exiting"
+            exit 0
+        fi
+        echo
+        log_info "Executing:"
+        for s in "${steps[@]}"; do log_dim "  - ${step_labels[$s]}"; done
+        sleep 1
+        for s in "${steps[@]}"; do
+            case "$s" in
+                1)
+                    select_apt_mirror_interactive
+                    apply_apt_mirror "$APT_MIRROR"
+                    echo
+                    ;;
+                2)
+                    select_npm_mirror_interactive
+                    echo
+                    ;;
+                3)
+                    install_system_deps
+                    echo
+                    ;;
+                4)
+                    install_nodejs
+                    echo
+                    ;;
+                5)
+                    [ -n "$NPM_MIRROR" ] && configure_npm_mirror
+                    install_claude_code
+                    configure_claude_code
+                    echo
+                    ;;
+            esac
+        done
     fi
-
-    echo
-    log_info "Executing:"
-    for s in "${steps[@]}"; do log_dim "  - ${step_labels[$s]}"; done
-    sleep 1
-
-    for s in "${steps[@]}"; do
-        case "$s" in
-            1)
-                select_apt_mirror_interactive
-                apply_apt_mirror "$APT_MIRROR"
-                echo
-                ;;
-            2)
-                select_npm_mirror_interactive
-                echo
-                ;;
-            3)
-                install_system_deps
-                echo
-                ;;
-            4)
-                install_nodejs
-                echo
-                ;;
-            5)
-                [ -n "$NPM_MIRROR" ] && configure_npm_mirror
-                install_claude_code
-                configure_claude_code
-                echo
-                ;;
-        esac
-    done
 
     print_summary
 }
 
 run_apt_only() {
+    if [ "$DISTRO_ID" = "alpine" ]; then
+        log_info "Alpine uses apk — skipping APT mirror configuration"
+        return 0
+    fi
     select_apt_mirror_interactive
     apply_apt_mirror "$APT_MIRROR"
     log_ok "APT mirror configured"
@@ -1712,6 +1854,19 @@ run_quick_mode() {
 
     if curl -sL --connect-timeout 2 "https://mirrors.aliyun.com" >/dev/null 2>&1; then
         USE_CHINA=true
+    fi
+
+    if [ "$DISTRO_ID" = "alpine" ]; then
+        NPM_MIRROR="https://registry.npmmirror.com/"
+        [ "$USE_CHINA" != true ] && NPM_MIRROR="https://registry.npmjs.org/"
+        log_ok "npm mirror: ${NPM_MIRROR}"
+        install_system_deps
+        install_nodejs
+        configure_npm_mirror
+        install_claude_code
+        configure_claude_code
+        print_summary
+        return 0
     fi
 
     if [ "$USE_CHINA" = true ]; then
