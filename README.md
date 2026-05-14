@@ -292,30 +292,25 @@ wget -qO- https://raw.githubusercontent.com/Souldevelop/deploy/master/deploy_cla
 
 ## Alpine Linux 特别说明
 
-Alpine Linux 默认没有 bash，脚本已在顶部内置 **POSIX 兼容自引导逻辑**。一键安装命令可以直接使用 `sh` 接收管道，脚本会自动安装 bash 并继续执行。
+Alpine Linux 默认没有 bash，首次使用前需要安装：
 
 ```bash
-# 远程安装（推荐——脚本会自动安装 bash）
-# Gitee（中国大陆推荐，速度快）
-# 注：Alpine 不支持进程替换 <()，需先下载配置到临时文件
-wget -qO /tmp/deploy.conf https://gitee.com/reverseking/deploy/raw/master/deploy.conf
-wget -qO- https://gitee.com/reverseking/deploy/raw/master/deploy_claude.sh | sh -s -- --config /tmp/deploy.conf
-
-# GitHub（全球备用）
-wget -qO /tmp/deploy.conf https://raw.githubusercontent.com/Souldevelop/deploy/master/deploy.conf
-wget -qO- https://raw.githubusercontent.com/Souldevelop/deploy/master/deploy_claude.sh | sh -s -- --config /tmp/deploy.conf
+apk add bash
 ```
 
-也可先手动安装 bash，然后使用标准 `| bash` 命令（支持进程替换）：
+之后即可正常使用标准一键安装命令：
 
 ```bash
-# 安装 bash
-apk add bash
-
-# 之后即可使用标准一键命令（支持进程替换）
+# 远程安装（Gitee 中国大陆推荐）
 wget -qO- https://gitee.com/reverseking/deploy/raw/master/deploy_claude.sh | bash -s -- \
   --config <(wget -qO- https://gitee.com/reverseking/deploy/raw/master/deploy.conf)
+
+# GitHub（全球备用）
+wget -qO- https://raw.githubusercontent.com/Souldevelop/deploy/master/deploy_claude.sh | bash -s -- \
+  --config <(wget -qO- https://raw.githubusercontent.com/Souldevelop/deploy/master/deploy.conf)
 ```
+
+脚本内置 POSIX 引导段，除 `| bash` 管道模式外（shell 层面限制），其余场景（本地文件、`| sh` 管道）会自动检测并安装 bash。
 
 **Alpine 部署差异：**
 - **包管理器**：使用 `apk` 而非 `apt`，自动跳过 APT 镜像源配置
