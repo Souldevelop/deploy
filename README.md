@@ -1,6 +1,6 @@
-# Claude Code CLI 一键部署工具 **v2.3.0**
+# Claude Code CLI 一键部署工具 **v2.4.0**
 
-在 Linux (Debian / Ubuntu / Alpine) 和 Windows 上一键安装 [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code/overview) 的自动化脚本。
+在 Linux (Debian / Ubuntu / Alpine / 银河麒麟) 和 Windows 上一键安装 [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code/overview) 的自动化脚本。
 
 支持 **x86_64 (amd64)** 和 **ARM64 (aarch64)** 双架构。
 
@@ -11,6 +11,7 @@
 | Debian | 11 (bullseye) / 12 (bookworm) / 13 (trixie) | amd64、arm64 |
 | Ubuntu | 18.04 (bionic) ~ 26.x | amd64、arm64 |
 | Alpine | 3.18 ~ 3.x | amd64、arm64 |
+| 银河麒麟 (Kylin) | V10 / V11 桌面版 (apt) 与服务器版 (yum/dnf) | amd64、arm64 |
 | Windows | 10 / 11、Windows Server 2016+ | amd64、arm64 |
 
 > **ARM64 支持**: Linux 端在树莓派、Orange Pi、AWS Graviton 等 ARM64 设备上测试通过；Windows 端支持 Surface Pro X/9/11 等 ARM64 Windows 设备。
@@ -18,7 +19,7 @@
 ## 功能特性
 
 - **一键部署** — 自动检测系统版本和架构，选择合适的安装方式
-- **多发行版支持** — 支持 Debian、Ubuntu、Alpine Linux（自动识别包管理器 apt/apk）
+- **多发行版支持** — 支持 Debian、Ubuntu、Alpine Linux、银河麒麟 V10/V11（自动识别包管理器 apt/apk/yum/dnf）
 - **双架构支持** — Linux ARM64 自动识别并使用 `ports.ubuntu.com` 源；Windows ARM64 自动下载 `arm64` 版 Node.js MSI
 - **多源智能切换** — Linux 下 NodeSource apt 安装优先，ARM 架构/中国网络回退到二进制 tarball；Alpine 使用 apk 安装；安装源双向回退（npmmirror ↔ nodejs.org）
 - **中国网络优化** — 自动检测中国网络环境，使用国内 APT / npm / Node.js 镜像
@@ -146,7 +147,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File deploy.ps1 -ConfigFile deplo
 ### 配置文件格式
 
 ```
-# APT 镜像源（Debian/Ubuntu 必填，Alpine 自动忽略）
+# APT 镜像源（Debian/Ubuntu 必填，Alpine/麒麟 自动忽略）
 APT_MIRROR=mirrors.aliyun.com
 
 # npm 镜像源（必填）
@@ -166,7 +167,7 @@ ANTHROPIC_MODEL=claude-sonnet-4-6-20250224
 
 | 配置项 | 必填 | 说明 |
 |--------|------|------|
-| `APT_MIRROR` | Debian/Ubuntu 必填 | APT 镜像源地址，只填主机名；Alpine 自动忽略 |
+| `APT_MIRROR` | Debian/Ubuntu 必填 | APT 镜像源地址，只填主机名；Alpine/麒麟 自动忽略 |
 | `NPM_MIRROR` | 是 | npm 注册表完整 URL |
 | `ANTHROPIC_API_KEY` | 否 | Claude API 密钥，不填则安装过程提示输入 |
 | `ANTHROPIC_BASE_URL` | 否 | API 端点地址，默认 `https://api.anthropic.com` |
@@ -195,10 +196,10 @@ deploy_claude.sh [OPTIONS]
 
 ### Linux
 
-1. **检测操作系统** — 自动识别 Debian/Ubuntu/Alpine 版本和架构（amd64 / arm64）
-2. **安装系统依赖** — Debian/Ubuntu 使用 `apt`，Alpine 使用 `apk` 安装 `curl`、`ca-certificates`、`git`
-3. **配置 APT 镜像源** — Debian/Ubuntu 切换到选择的镜像源（ARM Ubuntu 自动使用 `ubuntu-ports`）
-4. **安装 Node.js** — Debian/Ubuntu 优先 NodeSource apt，arm64/中国网络回退到二进制 tarball；Alpine 使用 `apk add nodejs npm`
+1. **检测操作系统** — 自动识别 Debian/Ubuntu/Alpine/银河麒麟 版本和架构（amd64 / arm64）
+2. **安装系统依赖** — Debian/Ubuntu/麒麟桌面版使用 `apt`，Alpine 使用 `apk`，麒麟服务器版使用 `yum`/`dnf` 安装 `curl`、`ca-certificates`、`git`
+3. **配置 APT 镜像源** — Debian/Ubuntu 切换到选择的镜像源（ARM Ubuntu 自动使用 `ubuntu-ports`）；麒麟保留系统自带专属源，不做改写
+4. **安装 Node.js** — Debian/Ubuntu 优先 NodeSource apt，arm64/中国网络回退到二进制 tarball；Alpine 使用 `apk add nodejs npm`；麒麟直接使用二进制 tarball
 5. **配置 npm 镜像源** — 设置 npm registry 地址
 6. **安装 Claude Code CLI** — 通过 npm 全局安装 `@anthropic-ai/claude-code`
 7. **配置 Claude Code** — 写入 API 密钥、地址、模型等信息
@@ -223,6 +224,8 @@ deploy_claude.sh [OPTIONS]
 | Ubuntu 18.04 / 20.04 | 20.x | NodeSource → 二进制回退 | 二进制 tarball |
 | Ubuntu 22.04+ | 22.x | NodeSource → 二进制回退 | 二进制 tarball |
 | Alpine 3.x | 22.x (apk) | `apk add nodejs` | `apk add nodejs` |
+| 银河麒麟 V10 | 20.x | 二进制 tarball | 二进制 tarball |
+| 银河麒麟 V11 | 22.x | 二进制 tarball | 二进制 tarball |
 | Windows | 22.x | MSI 安装 | arm64 MSI 安装 |
 
 **最低要求**: Node.js >= 18.x

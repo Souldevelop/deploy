@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# deploy_claude.sh — One-click Claude Code CLI deployment for Debian/Ubuntu/Alpine
+# deploy_claude.sh — One-click Claude Code CLI deployment for Debian/Ubuntu/Alpine/Kylin
 #
 # Remote usage (host on any web server):
 #   curl -fsSL https://your.host/deploy_claude.sh | sudo bash
@@ -17,6 +17,7 @@
 #   Debian  11 (bullseye) / 12 (bookworm) / 13 (trixie)
 #   Ubuntu  18.04 (bionic) ~ 26.x
 #   Alpine  3.18 ~ 3.x                 (apk package manager)
+#   Kylin   V10 / V11 desktop (apt) + server (yum/dnf)  — 银河麒麟
 #
 # Licensed under MIT.
 
@@ -88,6 +89,8 @@ ARCH_DISPLAY=""
 APT_REPO_PATH=""
 APT_MIRROR=""
 NPM_MIRROR=""
+# 包管理器类型: apt / apk / dnf / yum（detect_os 中设置）
+PKG_MGR=""
 USE_CHINA=false
 
 # ---------------------------------------------------------------------------
@@ -105,7 +108,7 @@ readonly GITEE_REPO_BASE="https://gitee.com/reverseking/deploy/raw/master"
 SELF_SOURCE=""
 
 # 脚本版本号（更新时请修改此值）
-readonly SCRIPT_VERSION="2.3.0"
+readonly SCRIPT_VERSION="2.4.0"
 
 # ---------------------------------------------------------------------------
 # APT mirror presets
@@ -505,11 +508,36 @@ detect_os() {
             CODENAME="$VERSION_ID"  # e.g. "3.21"
             enable_alpine_community_repo
             ;;
+        kylin)
+            # 银河麒麟: 桌面版基于 Ubuntu/openKylin (apt)，服务器版基于 CentOS 系 (yum/dnf)。
+            # V10/V11 各版本 ID 均为 kylin，通过实际存在的包管理器区分。
+            # 麒麟自带专属软件源，不改写 APT 镜像（见 supports_apt_mirror）。
+            CODENAME="${VERSION_ID,,}"  # e.g. "v10" / "v11"
+            if command -v apt-get >/dev/null 2>&1; then
+                PKG_MGR="apt"
+            elif command -v dnf >/dev/null 2>&1; then
+                PKG_MGR="dnf"
+            elif command -v yum >/dev/null 2>&1; then
+                PKG_MGR="yum"
+            else
+                log_error "Kylin: no supported package manager found (apt/dnf/yum)"
+                exit 1
+            fi
+            log_info "Kylin edition detected — package manager: ${PKG_MGR}"
+            ;;
         *)
-            log_error "Unsupported distribution: ${DISTRO_ID} (only debian/ubuntu/alpine)"
+            log_error "Unsupported distribution: ${DISTRO_ID} (only debian/ubuntu/alpine/kylin)"
             exit 1
             ;;
     esac
+
+    # 未在分支中显式设置时，按发行版推导包管理器
+    if [ -z "$PKG_MGR" ]; then
+        case "$DISTRO_ID" in
+            alpine) PKG_MGR="apk" ;;
+            *)      PKG_MGR="apt" ;;
+        esac
+    fi
 
     if [ -z "$CODENAME" ]; then
         log_error "Could not detect version"
@@ -545,6 +573,10 @@ check_version() {
                 confirm_yes "Continue?" "Y" || exit 0
             fi
             ;;
+        kylin)
+            # 麒麟版本号形如 "V10"，无法做数值比较——仅提示
+            log_dim "  Kylin ${VERSION_ID} — best-effort support"
+            ;;
     esac
 }
 
@@ -569,6 +601,15 @@ detect_apt_format() {
 # ---------------------------------------------------------------------------
 # Helpers for apt source construction
 # ---------------------------------------------------------------------------
+
+# 是否支持改写 APT 镜像源。仅 debian/ubuntu 支持；
+# alpine 使用 apk，kylin 使用麒麟专属源（改写会破坏系统）。
+supports_apt_mirror() {
+    case "$DISTRO_ID" in
+        debian|ubuntu) return 0 ;;
+        *)             return 1 ;;
+    esac
+}
 
 apt_components() {
     case "$DISTRO_ID" in
@@ -904,6 +945,30 @@ install_system_deps() {
         return 0
     fi
 
+    # ---- 麒麟服务器版等 rpm 系发行版：使用 yum/dnf ----
+    if [ "$PKG_MGR" = "dnf" ] || [ "$PKG_MGR" = "yum" ]; then
+        local pkgs=(curl wget ca-certificates git)
+        local install_list=()
+        for pkg in "${pkgs[@]}"; do
+            if ! rpm -q "$pkg" &>/dev/null 2>&1; then
+                install_list+=("$pkg")
+            fi
+        done
+        if [ ${#install_list[@]} -eq 0 ]; then
+            log_ok "All system dependencies already present"
+            return 0
+        fi
+        log_info "Installing: ${install_list[*]}"
+        run_with_spinner "安装系统依赖" "$PKG_MGR" install -y "${install_list[@]}" || {
+            "$PKG_MGR" install -y "${install_list[@]}" || {
+                log_error "Failed to install system dependencies"
+                return 1
+            }
+        }
+        log_ok "System dependencies installed"
+        return 0
+    fi
+
     # Clean up leftover apt backup files from previous runs
     rm -f /etc/apt/sources.list.d/*.bak.* /etc/apt/sources.list.bak.* 2>/dev/null || true
 
@@ -950,6 +1015,14 @@ select_nodejs_major() {
             case "$(echo "$VERSION_ID" | cut -d. -f1)" in
                 18|20) echo "20"  ;;  # NodeSource drops 22.x for bionic/focal
                 *)     echo "22"  ;;
+            esac
+            ;;
+        kylin)
+            # 麒麟 V10 服务器版基于 CentOS 8（glibc 2.28）——20.x 二进制兼容性最稳；
+            # V11（服务器 Swan25 / 桌面基于 openKylin）glibc 较新，可用 22.x
+            case "${VERSION_ID,,}" in
+                v10*) echo "20" ;;
+                *)    echo "22" ;;
             esac
             ;;
         *) echo "22" ;;
@@ -1011,8 +1084,12 @@ install_nodejs() {
         log_warn "Node.js ${current_ver} is too old (need 18+), upgrading"
     fi
 
+    # 麒麟系统：NodeSource 不支持 kylin，直接走二进制 tarball（glibc 系统可用）
+    if [ "$DISTRO_ID" = "kylin" ]; then
+        log_info "Kylin — NodeSource unavailable, using binary tarball ..."
+
     # ARM 架构 / 中国网络环境：NodeSource 镜像不稳定，跳过 apt 直接走二进制 tarball
-    if [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "armv7l" ] || [ "$ARCH" = "armhf" ] || [ "$USE_CHINA" = true ]; then
+    elif [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "armv7l" ] || [ "$ARCH" = "armhf" ] || [ "$USE_CHINA" = true ]; then
         if [ "$USE_CHINA" = true ] && [ "$ARCH" != "aarch64" ] && [ "$ARCH" != "armv7l" ] && [ "$ARCH" != "armhf" ]; then
             log_info "China network — skipping slow NodeSource, using binary tarball ..."
         else
@@ -1188,6 +1265,19 @@ install_nodejs_binary() {
     log_info "Extracting to /usr/local/ ..."
     tar -xzf "/tmp/${filename}" -C /usr/local/ --strip-components=1 --no-same-owner
     rm -f "/tmp/${filename}"
+
+    # 检测旧版 node 抢占 PATH（如麒麟/CentOS yum 源自带的 12.x 位于 /usr/bin/node）
+    hash -r 2>/dev/null || true
+    local resolved
+    resolved="$(command -v node 2>/dev/null || true)"
+    if [ -n "$resolved" ] && [ "$resolved" != "/usr/local/bin/node" ]; then
+        local resolved_major
+        resolved_major="$("$resolved" --version 2>/dev/null | sed 's/v//' | cut -d. -f1)"
+        if [ "$resolved_major" -lt 18 ] 2>/dev/null; then
+            log_warn "Old Node.js at ${resolved} shadows /usr/local/bin/node in PATH"
+            log_warn "Remove it (e.g. yum remove -y nodejs / apt-get remove nodejs) or adjust PATH order"
+        fi
+    fi
 
     local installed
     installed="$(node --version 2>/dev/null || echo "unknown")"
@@ -1647,10 +1737,10 @@ print_summary() {
     command -v npm    &>/dev/null && echo "  npm:     $(npm --version)"    || true
     command -v claude &>/dev/null && echo "  Claude:  $(claude --version 2>/dev/null || echo 'installed')" || true
     echo
-    if [ "$DISTRO_ID" = "alpine" ]; then
+    if supports_apt_mirror; then
+        [ -n "$APT_MIRROR" ] && echo "  APT mirror:  ${APT_MIRROR}"
         [ -n "$NPM_MIRROR" ] && echo "  npm mirror:  ${NPM_MIRROR}"
     else
-        [ -n "$APT_MIRROR" ] && echo "  APT mirror:  ${APT_MIRROR}"
         [ -n "$NPM_MIRROR" ] && echo "  npm mirror:  ${NPM_MIRROR}"
     fi
     local env_dir; env_dir="$(user_home)/.claude"
@@ -1680,7 +1770,7 @@ show_menu() {
     cat << EOF
 ============================================
  Claude Code CLI — Bootstrap Installer
- Debian / Ubuntu / Alpine
+ Debian / Ubuntu / Alpine / Kylin
 ============================================
 
   System: ${os_label} ${ARCH_DISPLAY}
@@ -1730,14 +1820,14 @@ run_full_deploy() {
         USE_CHINA=true
     fi
 
-    if [ "$DISTRO_ID" != "alpine" ]; then
+    if supports_apt_mirror; then
         select_apt_mirror_interactive
     fi
     select_npm_mirror_interactive
 
     echo
     install_system_deps
-    if [ "$DISTRO_ID" != "alpine" ]; then
+    if supports_apt_mirror; then
         echo
         apply_apt_mirror "$APT_MIRROR"
     fi
@@ -1753,7 +1843,8 @@ run_full_deploy() {
 }
 
 run_custom_deploy() {
-    if [ "$DISTRO_ID" = "alpine" ]; then
+    if ! supports_apt_mirror; then
+        # alpine/kylin：不改写 APT 镜像源，步骤菜单不含该项
         declare -A step_labels=(
             [1]="npm mirror"
             [2]="System dependencies (curl/git)"
@@ -1839,8 +1930,12 @@ run_custom_deploy() {
 }
 
 run_apt_only() {
-    if [ "$DISTRO_ID" = "alpine" ]; then
-        log_info "Alpine uses apk — skipping APT mirror configuration"
+    if ! supports_apt_mirror; then
+        case "$DISTRO_ID" in
+            alpine) log_info "Alpine uses apk — skipping APT mirror configuration" ;;
+            kylin)  log_info "Kylin keeps its own package sources — skipping APT mirror configuration" ;;
+            *)      log_info "${DISTRO_ID} — skipping APT mirror configuration" ;;
+        esac
         return 0
     fi
     select_apt_mirror_interactive
@@ -1881,7 +1976,7 @@ run_quick_mode() {
         USE_CHINA=true
     fi
 
-    if [ "$DISTRO_ID" = "alpine" ]; then
+    if [ "$DISTRO_ID" = "alpine" ] || [ "$DISTRO_ID" = "kylin" ]; then
         NPM_MIRROR="https://registry.npmmirror.com/"
         [ "$USE_CHINA" != true ] && NPM_MIRROR="https://registry.npmjs.org/"
         log_ok "npm mirror: ${NPM_MIRROR}"
