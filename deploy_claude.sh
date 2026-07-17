@@ -108,7 +108,7 @@ readonly GITEE_REPO_BASE="https://gitee.com/reverseking/deploy/raw/master"
 SELF_SOURCE=""
 
 # 脚本版本号（更新时请修改此值）
-readonly SCRIPT_VERSION="2.4.0"
+readonly SCRIPT_VERSION="2.4.1"
 
 # ---------------------------------------------------------------------------
 # APT mirror presets
@@ -1030,6 +1030,36 @@ select_nodejs_major() {
 }
 
 # ---------------------------------------------------------------------------
+# Ensure npm is usable (repair when node exists but npm is not in PATH)
+# ---------------------------------------------------------------------------
+
+ensure_npm() {
+    command -v npm &>/dev/null && return 0
+
+    # corepack 可激活 node 自带的 npm
+    corepack enable npm 2>/dev/null || true
+    command -v npm &>/dev/null && return 0
+
+    # 从 node 真实安装位置寻找同捆的 npm（如仅软链了 node 的手动安装）
+    local node_bin node_dir candidate
+    node_bin="$(command -v node 2>/dev/null || true)"
+    [ -z "$node_bin" ] && return 1
+    node_bin="$(readlink -f "$node_bin" 2>/dev/null || echo "$node_bin")"
+    node_dir="$(dirname "$node_bin")"
+    for candidate in \
+        "${node_dir}/npm" \
+        "${node_dir}/../lib/node_modules/npm/bin/npm-cli.js"; do
+        if [ -e "$candidate" ]; then
+            chmod +x "$candidate" 2>/dev/null || true
+            ln -sf "$candidate" /usr/local/bin/npm
+            break
+        fi
+    done
+    hash -r 2>/dev/null || true
+    command -v npm &>/dev/null
+}
+
+# ---------------------------------------------------------------------------
 # Install Node.js (NodeSource -> binary tarball fallback)
 # ---------------------------------------------------------------------------
 
@@ -1044,13 +1074,15 @@ install_nodejs() {
             local cmj
             cmj="$(echo "$cv" | sed 's/v//' | cut -d. -f1)"
             if [ "$cmj" -ge 18 ] 2>/dev/null; then
-                log_ok "Node.js ${cv} already installed, skipping"
                 if command -v npm &>/dev/null; then
+                    log_ok "Node.js ${cv} already installed, skipping"
                     log_dim "  npm $(npm --version)"
+                    return 0
                 fi
-                return 0
+                log_warn "Node.js ${cv} present but npm missing — installing via apk"
+            else
+                log_warn "Node.js ${cv} is too old (need 18+), upgrading"
             fi
-            log_warn "Node.js ${cv} is too old (need 18+), upgrading"
         fi
         log_info "Installing Node.js via apk ..."
         run_with_spinner "安装 Node.js (apk)" apk add nodejs npm || {
@@ -1078,10 +1110,16 @@ install_nodejs() {
         current_ver="$(node --version 2>/dev/null || true)"
         current_major="$(echo "$current_ver" | sed 's/v//' | cut -d. -f1)"
         if [ "$current_major" -ge 18 ] 2>/dev/null; then
-            log_ok "Node.js ${current_ver} already installed, skipping"
-            return 0
+            # npm 可能缺失（如仅软链了 node 的手动安装）——修不好则重装
+            if ensure_npm; then
+                log_ok "Node.js ${current_ver} already installed, skipping"
+                log_dim "  npm $(npm --version)"
+                return 0
+            fi
+            log_warn "Node.js ${current_ver} present but npm missing — reinstalling via binary tarball"
+        else
+            log_warn "Node.js ${current_ver} is too old (need 18+), upgrading"
         fi
-        log_warn "Node.js ${current_ver} is too old (need 18+), upgrading"
     fi
 
     # 麒麟系统：NodeSource 不支持 kylin，直接走二进制 tarball（glibc 系统可用）
@@ -1336,7 +1374,7 @@ configure_npm_mirror() {
             else
                 echo "registry=${NPM_MIRROR}" >> "$user_rcfile"
             fi
-            chown "${SUDO_USER}:${SUDO_USER}" "$user_rcfile" 2>/dev/null || true
+            chown "${SUDO_USER}:" "$user_rcfile" 2>/dev/null || true
         fi
     fi
 
@@ -1359,6 +1397,11 @@ install_claude_code() {
     major="$(node --version 2>/dev/null | sed 's/v//' | cut -d. -f1)"
     if [ "$major" -lt 18 ] 2>/dev/null; then
         log_error "Node.js version too old ($(node --version)), need 18+"
+        return 1
+    fi
+
+    if ! command -v npm &>/dev/null && ! ensure_npm; then
+        log_error "npm is required but not found — run the Node.js step first (menu option 5)"
         return 1
     fi
 
@@ -1426,6 +1469,25 @@ _write_json_fallback() {
     chmod 644 "$file"
 }
 
+# 将 Claude 配置同步到 /root/.claude。
+# 通过 sudo/su 提权安装时配置写入实际用户目录，但服务器上经常直接以 root
+# 运行 claude（读 /root/.claude），两处都写以避免读写位置不一致。
+sync_claude_config_to_root() {
+    local src_dir="$1"
+    if [ "$(id -u)" -ne 0 ] || [ "$src_dir" = "/root/.claude" ]; then
+        return 0
+    fi
+    mkdir -p /root/.claude
+    if [ -f "${src_dir}/settings.json" ]; then
+        cp -f "${src_dir}/settings.json" /root/.claude/settings.json
+    fi
+    if [ -f "${src_dir}/.env" ]; then
+        cp -f "${src_dir}/.env" /root/.claude/.env
+        chmod 600 /root/.claude/.env
+    fi
+    log_dim "  Config synced → /root/.claude (for running claude as root)"
+}
+
 # ---------------------------------------------------------------------------
 # Claude Code post-install configuration
 # ---------------------------------------------------------------------------
@@ -1438,7 +1500,6 @@ configure_claude_code() {
         return 0
     fi
 
-    local real_user="${SUDO_USER:-$(logname 2>/dev/null || echo "root")}"
     local claude_dir; claude_dir="$(user_home)/.claude"
     mkdir -p "$claude_dir"
 
@@ -1537,8 +1598,15 @@ with open(cfg_file, 'w') as f:
     log_ok "Config written → ${claude_dir}/settings.json"
     log_dim "  .env (backup) → ${claude_dir}/.env"
 
-    # Own by the real user
-    [ "$real_user" != "root" ] && chown -R "${real_user}:${real_user}" "$claude_dir" 2>/dev/null || true
+    # Own by the actual owner of the home directory the config lives in.
+    # 用 "user:"（登录组）而非 "user:user" —— 部分系统组名与用户名不同，
+    # 后者会静默失败留下 root 属主文件，导致普通用户运行 claude 无法写配置
+    local home_owner
+    home_owner="$(stat -c %U "$(dirname "$claude_dir")" 2>/dev/null || echo "root")"
+    if [ "$home_owner" != "root" ]; then
+        chown -R "${home_owner}:" "$claude_dir" 2>/dev/null || true
+    fi
+    sync_claude_config_to_root "$claude_dir"
 
     # ---------- Verify connectivity ----------
     echo
@@ -1699,10 +1767,13 @@ reconfigure_claude() {
 }
 EOF
 
-    # Own by the real user
-    if [ -n "${SUDO_USER:-}" ] && [ "$SUDO_USER" != "root" ]; then
-        chown -R "${SUDO_USER}:${SUDO_USER}" "$claude_dir" 2>/dev/null || true
+    # Own by the actual owner of the home directory the config lives in
+    local home_owner
+    home_owner="$(stat -c %U "$(dirname "$claude_dir")" 2>/dev/null || echo "root")"
+    if [ "$home_owner" != "root" ]; then
+        chown -R "${home_owner}:" "$claude_dir" 2>/dev/null || true
     fi
+    sync_claude_config_to_root "$claude_dir"
 
     echo
     log_ok "Claude Code configuration updated"

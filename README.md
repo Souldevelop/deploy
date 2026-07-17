@@ -1,4 +1,4 @@
-# Claude Code CLI 一键部署工具 **v2.4.0**
+# Claude Code CLI 一键部署工具 **v2.4.1**
 
 在 Linux (Debian / Ubuntu / Alpine / 银河麒麟) 和 Windows 上一键安装 [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code/overview) 的自动化脚本。
 
@@ -24,6 +24,7 @@
 - **多源智能切换** — Linux 下 NodeSource apt 安装优先，ARM 架构/中国网络回退到二进制 tarball；Alpine 使用 apk 安装；安装源双向回退（npmmirror ↔ nodejs.org）
 - **中国网络优化** — 自动检测中国网络环境，使用国内 APT / npm / Node.js 镜像
 - **无人值守部署** — 通过配置文件实现全程自动化安装，无需交互
+- **root 双写配置** — 通过 sudo/su 提权安装时，Claude 配置同时写入实际用户目录和 `/root/.claude`，root 或普通用户运行 `claude` 均可读取；已有 node 但 npm 缺失时自动修复
 - **CC-Switch 集成** — Windows 版额外集成 AI API 切换工具 CC-Switch 自动安装
 - **干净卸载** — Linux 提供完整的卸载脚本（`remove_claude.sh`）
 

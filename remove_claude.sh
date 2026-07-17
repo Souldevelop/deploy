@@ -193,14 +193,22 @@ remove_claude_config() {
 
     log_step "Removing Claude Code config ..."
 
-    if [ ! -d "$claude_dir" ]; then
+    if [ ! -d "$claude_dir" ] && [ ! -d /root/.claude ]; then
         log_ok "Claude config not found, skipping"
         return 0
     fi
 
-    if confirm_yes "Remove Claude config (${claude_dir})?" "Y"; then
+    if [ -d "$claude_dir" ] && confirm_yes "Remove Claude config (${claude_dir})?" "Y"; then
         run rm -rf "$claude_dir"
         log_ok "Claude config removed"
+    fi
+
+    # 部署脚本会同步一份配置到 /root/.claude（root 运行 claude 的场景），一并清理
+    if [ "$claude_dir" != "/root/.claude" ] && [ -d /root/.claude ]; then
+        if confirm_yes "Remove root's synced config (/root/.claude)?" "Y"; then
+            run rm -rf /root/.claude
+            log_ok "Root synced config removed"
+        fi
     fi
 }
 
