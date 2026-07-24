@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# deploy_claude.sh — One-click Claude Code CLI deployment for Debian/Ubuntu/Alpine/Kylin
+# deploy_claude.sh — One-click Claude Code CLI deployment for Debian/Ubuntu/Alpine/Kylin/UOS
 #
 # Remote usage (host on any web server):
 #   curl -fsSL https://your.host/deploy_claude.sh | sudo bash
@@ -18,6 +18,7 @@
 #   Ubuntu  18.04 (bionic) ~ 26.x
 #   Alpine  3.18 ~ 3.x                 (apk package manager)
 #   Kylin   V10 / V11 desktop (apt) + server (yum/dnf)  — 银河麒麟
+#   UOS     Server 20 (dnf/yum) + desktop (apt)         — 统信
 #
 # Licensed under MIT.
 
@@ -108,7 +109,7 @@ readonly GITEE_REPO_BASE="https://gitee.com/reverseking/deploy/raw/master"
 SELF_SOURCE=""
 
 # 脚本版本号（更新时请修改此值）
-readonly SCRIPT_VERSION="2.4.1"
+readonly SCRIPT_VERSION="2.5.0"
 
 # ---------------------------------------------------------------------------
 # APT mirror presets
@@ -525,8 +526,24 @@ detect_os() {
             fi
             log_info "Kylin edition detected — package manager: ${PKG_MGR}"
             ;;
+        uos)
+            # 统信UOS: 桌面版基于 Deepin/Debian (apt)，服务器版基于 CentOS/RHEL 系 (dnf/yum)。
+            # 通过实际存在的包管理器区分。UOS 自带专属软件源，不改写镜像。
+            CODENAME="${VERSION_CODENAME,,}"  # e.g. "kongzi"
+            if command -v apt-get >/dev/null 2>&1; then
+                PKG_MGR="apt"
+            elif command -v dnf >/dev/null 2>&1; then
+                PKG_MGR="dnf"
+            elif command -v yum >/dev/null 2>&1; then
+                PKG_MGR="yum"
+            else
+                log_error "UOS: no supported package manager found (apt/dnf/yum)"
+                exit 1
+            fi
+            log_info "UOS edition detected — package manager: ${PKG_MGR}"
+            ;;
         *)
-            log_error "Unsupported distribution: ${DISTRO_ID} (only debian/ubuntu/alpine/kylin)"
+            log_error "Unsupported distribution: ${DISTRO_ID} (only debian/ubuntu/alpine/kylin/uos)"
             exit 1
             ;;
     esac
@@ -576,6 +593,9 @@ check_version() {
         kylin)
             # 麒麟版本号形如 "V10"，无法做数值比较——仅提示
             log_dim "  Kylin ${VERSION_ID} — best-effort support"
+            ;;
+        uos)
+            log_dim "  UOS ${VERSION_ID} (${CODENAME}) — best-effort support"
             ;;
     esac
 }
@@ -1025,6 +1045,14 @@ select_nodejs_major() {
                 *)    echo "22" ;;
             esac
             ;;
+        uos)
+            # UOS 服务器版 (dnf) 基于 CentOS 8（glibc 2.28）——20.x 兼容性最稳；
+            # 桌面版 (apt) 基于 Deepin（glibc 较新），可用 22.x
+            case "${PKG_MGR}" in
+                dnf|yum) echo "20" ;;
+                *)       echo "22" ;;
+            esac
+            ;;
         *) echo "22" ;;
     esac
 }
@@ -1122,9 +1150,9 @@ install_nodejs() {
         fi
     fi
 
-    # 麒麟系统：NodeSource 不支持 kylin，直接走二进制 tarball（glibc 系统可用）
-    if [ "$DISTRO_ID" = "kylin" ]; then
-        log_info "Kylin — NodeSource unavailable, using binary tarball ..."
+    # 麒麟/统信系统：NodeSource 不支持 kylin/uos，直接走二进制 tarball（glibc 系统可用）
+    if [ "$DISTRO_ID" = "kylin" ] || [ "$DISTRO_ID" = "uos" ]; then
+        log_info "${DISTRO_ID^} — NodeSource unavailable, using binary tarball ..."
 
     # ARM 架构 / 中国网络环境：NodeSource 镜像不稳定，跳过 apt 直接走二进制 tarball
     elif [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "armv7l" ] || [ "$ARCH" = "armhf" ] || [ "$USE_CHINA" = true ]; then
@@ -1841,7 +1869,7 @@ show_menu() {
     cat << EOF
 ============================================
  Claude Code CLI — Bootstrap Installer
- Debian / Ubuntu / Alpine / Kylin
+ Debian / Ubuntu / Alpine / Kylin / UOS
 ============================================
 
   System: ${os_label} ${ARCH_DISPLAY}
@@ -1915,7 +1943,7 @@ run_full_deploy() {
 
 run_custom_deploy() {
     if ! supports_apt_mirror; then
-        # alpine/kylin：不改写 APT 镜像源，步骤菜单不含该项
+        # alpine/kylin/uos：不改写 APT 镜像源，步骤菜单不含该项
         declare -A step_labels=(
             [1]="npm mirror"
             [2]="System dependencies (curl/git)"
@@ -2005,6 +2033,7 @@ run_apt_only() {
         case "$DISTRO_ID" in
             alpine) log_info "Alpine uses apk — skipping APT mirror configuration" ;;
             kylin)  log_info "Kylin keeps its own package sources — skipping APT mirror configuration" ;;
+            uos)    log_info "UOS keeps its own package sources — skipping APT mirror configuration" ;;
             *)      log_info "${DISTRO_ID} — skipping APT mirror configuration" ;;
         esac
         return 0
@@ -2047,7 +2076,7 @@ run_quick_mode() {
         USE_CHINA=true
     fi
 
-    if [ "$DISTRO_ID" = "alpine" ] || [ "$DISTRO_ID" = "kylin" ]; then
+    if [ "$DISTRO_ID" = "alpine" ] || [ "$DISTRO_ID" = "kylin" ] || [ "$DISTRO_ID" = "uos" ]; then
         NPM_MIRROR="https://registry.npmmirror.com/"
         [ "$USE_CHINA" != true ] && NPM_MIRROR="https://registry.npmjs.org/"
         log_ok "npm mirror: ${NPM_MIRROR}"
