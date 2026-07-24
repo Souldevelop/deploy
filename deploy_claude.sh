@@ -109,7 +109,7 @@ readonly GITEE_REPO_BASE="https://gitee.com/reverseking/deploy/raw/master"
 SELF_SOURCE=""
 
 # 脚本版本号（更新时请修改此值）
-readonly SCRIPT_VERSION="2.5.0"
+readonly SCRIPT_VERSION="2.6.0"
 
 # ---------------------------------------------------------------------------
 # APT mirror presets
@@ -1244,9 +1244,14 @@ install_nodejs_binary() {
     esac
 
     local base_url="https://nodejs.org/dist"
-    case "${NPM_MIRROR:-}" in
-        *npmmirror*) base_url="https://mirrors.npmmirror.com/nodejs" ;;
-    esac
+    # China 环境默认走华为云镜像（实测 10MB/s），npmmirror 在某些网络被阻断
+    if [ "$USE_CHINA" = true ]; then
+        base_url="https://mirrors.huaweicloud.com/nodejs"
+    else
+        case "${NPM_MIRROR:-}" in
+            *npmmirror*) base_url="https://mirrors.npmmirror.com/nodejs" ;;
+        esac
+    fi
 
     local version=""
     local fallback_vers=""
@@ -1276,31 +1281,36 @@ install_nodejs_binary() {
         fi
     fi
 
-    # Retry with the alternative mirror when primary fails
+    # Retry with alternative mirrors when primary fails
     if [ -z "$version" ]; then
-        local alt_url
+        local alt_urls=()
         case "$base_url" in
-            *npmmirror*) alt_url="https://nodejs.org/dist" ;;
-            *)           alt_url="https://mirrors.npmmirror.com/nodejs" ;;
+            *huaweicloud*)   alt_urls=("https://nodejs.org/dist" "https://mirrors.npmmirror.com/nodejs") ;;
+            *npmmirror*)     alt_urls=("https://nodejs.org/dist" "https://mirrors.huaweicloud.com/nodejs") ;;
+            *)               alt_urls=("https://mirrors.huaweicloud.com/nodejs" "https://mirrors.npmmirror.com/nodejs") ;;
         esac
-        log_warn "Primary mirror unreachable, trying $(echo "$alt_url" | sed 's|https://||') ..."
-        base_url="$alt_url"
-        for try_ver in $fallback_vers; do
-            local test_url="${base_url}/v${try_ver}/node-v${try_ver}-linux-${arch}.tar.gz"
-            if curl -sfLI --connect-timeout 5 --max-time 10 -o /dev/null "${test_url}" 2>/dev/null; then
-                version="v${try_ver}"
-                log_dim "  Found ${version} (alternative mirror)"
-                break
-            fi
-        done
-        # Last resort: index.json on alternative mirror
-        if [ -z "$version" ]; then
+        for alt_url in "${alt_urls[@]}"; do
+            log_warn "Primary mirror unreachable, trying $(echo "$alt_url" | sed 's|https://||') ..."
+            for try_ver in $fallback_vers; do
+                local test_url="${alt_url}/v${try_ver}/node-v${try_ver}-linux-${arch}.tar.gz"
+                if curl -sfLI --connect-timeout 5 --max-time 10 -o /dev/null "${test_url}" 2>/dev/null; then
+                    version="v${try_ver}"
+                    base_url="$alt_url"
+                    log_dim "  Found ${version} (alternative mirror)"
+                    break 2
+                fi
+            done
+            # Last resort: index.json on alternative mirror
             local ver_list
-            ver_list="$(curl -fsL --connect-timeout 10 --max-time 20 "${base_url}/index.json" 2>/dev/null || true)"
+            ver_list="$(curl -fsL --connect-timeout 10 --max-time 20 "${alt_url}/index.json" 2>/dev/null || true)"
             if [ -n "$ver_list" ]; then
                 version="$(echo "$ver_list" | grep -oP "\"v${major}\.[0-9]+\.[0-9]+\"" | tr -d '"' | sort -V | tail -1 || true)"
+                if [ -n "$version" ]; then
+                    base_url="$alt_url"
+                    break
+                fi
             fi
-        fi
+        done
     fi
 
     if [ -z "$version" ]; then
@@ -1312,20 +1322,24 @@ install_nodejs_binary() {
     local download_url="${base_url}/${version}/${filename}"
 
     log_info "Downloading Node.js ${version} (binary tarball) ..."
-    if ! curl -fL --connect-timeout 10 --max-time 180 --progress-bar \
-        "$download_url" -o "/tmp/${filename}" 2>/dev/null; then
-        # Try alternative mirror
-        local alt_dl_url
-        case "$base_url" in
-            *npmmirror*) alt_dl_url="https://nodejs.org/dist/${version}/${filename}" ;;
-            *)           alt_dl_url="https://mirrors.npmmirror.com/nodejs/${version}/${filename}" ;;
-        esac
-        log_warn "Download from primary failed, trying alternative mirror ..."
-        curl -fL --connect-timeout 10 --max-time 180 --progress-bar \
-            "$alt_dl_url" -o "/tmp/${filename}" || {
-            log_error "Download failed, check network connectivity"
-            return 1
-        }
+    local downloaded=false
+    local dl_urls=("$download_url")
+    case "$base_url" in
+        *huaweicloud*)   dl_urls+=("https://nodejs.org/dist/${version}/${filename}" "https://mirrors.npmmirror.com/nodejs/${version}/${filename}") ;;
+        *npmmirror*)     dl_urls+=("https://nodejs.org/dist/${version}/${filename}" "https://mirrors.huaweicloud.com/nodejs/${version}/${filename}") ;;
+        *)               dl_urls+=("https://mirrors.huaweicloud.com/nodejs/${version}/${filename}" "https://mirrors.npmmirror.com/nodejs/${version}/${filename}") ;;
+    esac
+    for dl_url in "${dl_urls[@]}"; do
+        if curl -fL --connect-timeout 10 --max-time 180 --progress-bar \
+            "$dl_url" -o "/tmp/${filename}" 2>/dev/null; then
+            downloaded=true
+            break
+        fi
+        log_warn "Download from $(echo "$dl_url" | sed 's|https://||' | cut -d/ -f1) failed, trying next mirror ..."
+    done
+    if [ "$downloaded" = false ]; then
+        log_error "Download failed, check network connectivity"
+        return 1
     fi
 
     log_info "Extracting to /usr/local/ ..."
